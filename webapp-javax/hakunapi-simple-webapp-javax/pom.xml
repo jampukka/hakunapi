@@ -40,6 +40,10 @@
         </dependency>
         <dependency>
             <groupId>fi.nls.hakunapi</groupId>
+            <artifactId>hakunapi-source-flatgeobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>fi.nls.hakunapi</groupId>
             <artifactId>hakunapi-jsonfg</artifactId>
         </dependency>
         <dependency>
@@ -111,6 +115,13 @@
     <build>
         <finalName>features</finalName>
         <plugins>
+        	<plugin>
+                <groupId>org.apache.tomcat.maven</groupId>
+                <artifactId>tomcat7-maven-plugin</artifactId>
+                <configuration>
+                    <path>/${project.build.finalName}</path>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>

@@ -109,6 +109,11 @@
 			</dependency>
 			<dependency>
 				<groupId>fi.nls.hakunapi</groupId>
+				<artifactId>hakunapi-source-flatgeobuf</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>fi.nls.hakunapi</groupId>
 				<artifactId>hakunapi-html</artifactId>
 				<version>${project.version}</version>
 			</dependency>
@@ -250,6 +255,11 @@
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-war-plugin</artifactId>
 					<version>3.3.2</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.tomcat.maven</groupId>
+					<artifactId>tomcat7-maven-plugin</artifactId>
+					<version>2.2</version>
 				</plugin>
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
