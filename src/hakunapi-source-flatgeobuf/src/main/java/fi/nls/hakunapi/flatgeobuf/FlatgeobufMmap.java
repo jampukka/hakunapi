@@ -19,6 +19,7 @@ public class FlatgeobufMmap implements AutoCloseable {
     private final FileChannel fc;
     private final ByteBuffer mmap;
     private final HeaderMeta meta;
+    private final long featuresOffset;
 
     public FlatgeobufMmap(Path path) throws IOException, IllegalArgumentException {
         this(path, null);
@@ -32,6 +33,7 @@ public class FlatgeobufMmap implements AutoCloseable {
         this.fc = FileChannel.open(path);
         this.mmap = fc.map(MapMode.READ_ONLY, 0L, size).order(ByteOrder.LITTLE_ENDIAN);
         this.meta = meta != null ? meta : HeaderMeta.read(mmap);
+        this.featuresOffset = this.meta.offset + PackedRTree.calcSize((int) this.meta.featuresCount, this.meta.indexNodeSize);
         mmap.position(0);
     }
 
@@ -39,14 +41,15 @@ public class FlatgeobufMmap implements AutoCloseable {
         return meta;
     }
     
-    public Iterator<Feature> boundingBoxSearch(Envelope e) {
-        return PackedRTree.search(mmap, meta.offset, (int) meta.featuresCount, meta.indexNodeSize, e).stream()
+    public Iterator<Feature> boundingBoxSearch(Envelope e, int offset) {
+        return PackedRTree.search(mmap.duplicate().order(ByteOrder.LITTLE_ENDIAN), meta.offset, (int) meta.featuresCount, meta.indexNodeSize, e).stream()
+                .skip(offset)
                 .map(x -> readFeature((int) x.offset))
                 .iterator();
     }
 
     public Feature readFeature(int offset) {
-        return Feature.getRootAsFeature(mmap.slice().position(offset + 4));
+        return Feature.getRootAsFeature(mmap.duplicate().position((int) (featuresOffset + offset + 4)));
     }
 
     @Override
@@ -55,8 +58,6 @@ public class FlatgeobufMmap implements AutoCloseable {
     }
     
     public FgbFeatureIterator all(int offset) {
-        long geometryindexSize = PackedRTree.calcSize((int) meta.featuresCount, meta.indexNodeSize);
-        long featuresOffset = meta.offset + geometryindexSize;
         return new FgbFeatureIterator(featuresOffset, offset, (int) meta.featuresCount, mmap);
     }
     

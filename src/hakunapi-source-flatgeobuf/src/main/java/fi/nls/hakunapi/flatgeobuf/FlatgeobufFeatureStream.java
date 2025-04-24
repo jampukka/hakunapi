@@ -31,7 +31,7 @@ public class FlatgeobufFeatureStream implements FeatureStream {
         this.fgb = fgb;
         this.featureLoop = featureLoop;
         this.filterFn = filterFn;
-        this.provider = new FlatgeobufFeatureValueProvider(meta.geometryType, meta.columns);
+        this.provider = new FlatgeobufFeatureValueProvider(meta.geometryType, meta.srid, meta.columns);
         this.next = new ObjectArrayValueContainer(1 + meta.columns.size());
         this.valueMappers = valueMappers;
     }

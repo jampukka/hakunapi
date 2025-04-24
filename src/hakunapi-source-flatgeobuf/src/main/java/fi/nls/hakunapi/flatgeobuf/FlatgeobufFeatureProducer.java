@@ -3,14 +3,19 @@ package fi.nls.hakunapi.flatgeobuf;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BinaryOperator;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.wololo.flatgeobuf.ColumnMeta;
+import org.wololo.flatgeobuf.generated.Feature;
 
 import fi.nls.hakunapi.core.FeatureProducer;
 import fi.nls.hakunapi.core.FeatureStream;
@@ -20,6 +25,7 @@ import fi.nls.hakunapi.core.ValueProvider;
 import fi.nls.hakunapi.core.filter.Filter;
 import fi.nls.hakunapi.core.filter.FilterOp;
 import fi.nls.hakunapi.core.filter.LikeFilter;
+import fi.nls.hakunapi.core.projection.ProjectionHelper;
 import fi.nls.hakunapi.core.property.HakunaProperty;
 import fi.nls.hakunapi.core.property.simple.HakunaPropertyGeometry;
 import fi.nls.hakunapi.core.request.GetFeatureCollection;
@@ -42,14 +48,19 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
         ctx.setSRID(request.getSRID());
 
         List<ValueMapper> mappers = select(ft, col.getProperties(), ctx);
-        
-        // TODO: Select query plan
-        // -> file has geometry index and filters has intersects or intersects index filter -> use geometry index
-        //   -> Remove that filter from filters (unless it's intersects and no loose_bbox enabled)
-        // -> full table scan
 
-        Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and);
+        Optional<Filter> intersectsFilter = filters.stream().filter(f -> f.getOp() == FilterOp.INTERSECTS || f.getOp() == FilterOp.INTERSECTS_INDEX).findAny();
+        if (intersectsFilter.isPresent()) {
+            Filter f = intersectsFilter.get();
+            filters.remove(f);
+            HakunaPropertyGeometry prop = (HakunaPropertyGeometry) f.getProp();
+            Geometry geom = ProjectionHelper.reprojectToStorageCRS(prop, (Geometry) f.getValue());
+            Envelope envelope = geom.getEnvelopeInternal();
+            Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and);
+            return new FlatgeobufFeatureStream(ft.meta, ft.open(), fgb -> fgb.boundingBoxSearch(envelope, request.getOffset()), filterFn, mappers);
+        }
 
+        Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and); 
         return new FlatgeobufFeatureStream(ft.meta, ft.open(), fgb -> fgb.all(request.getOffset()), filterFn, mappers);
     }
 
@@ -147,7 +158,8 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
             case NOT_LIKE:
                 return toPredicate((LikeFilter) filter, i).negate();
             }
-        } else if (value instanceof Comparable) {
+        }
+        if (value instanceof Comparable) {
             Comparable c = (Comparable) value;
             switch (filter.getOp()) {
             case EQUAL_TO:
@@ -163,9 +175,12 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
             case LESS_THAN_OR_EQUAL_TO:
                 return vp -> !vp.isNull(i) && c.compareTo(vp.getObject(i)) <= 0;
             }
-        } else if (value instanceof Geometry) {
+        }
+        if (value instanceof Geometry) {
             Geometry g = (Geometry) value;
             switch (filter.getOp()) {
+            case INTERSECTS_INDEX:
+                return vp -> !vp.isNull(i) && g.getEnvelopeInternal().intersects(vp.getHakunaGeometry(i).toJTSGeometry().getEnvelopeInternal());
             case INTERSECTS:
                 return vp -> !vp.isNull(i) && g.intersects(vp.getHakunaGeometry(i).toJTSGeometry());
             case EQUALS:
@@ -183,7 +198,8 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
             case CONTAINS:
                 return vp -> !vp.isNull(i) && g.contains(vp.getHakunaGeometry(i).toJTSGeometry());                
             }
-        } else if (filter.getOp() == FilterOp.ARRAY_OVERLAPS) {
+        }
+        if (filter.getOp() == FilterOp.ARRAY_OVERLAPS) {
             final List<Object> v = (List<Object>) value;
             return vp -> !vp.isNull(i) && Arrays.stream(vp.getArray(i)).anyMatch(v::contains);
         }

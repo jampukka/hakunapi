@@ -16,7 +16,7 @@
         	<groupId>org.wololo</groupId>
         	<artifactId>flatgeobuf</artifactId>
         	<version>3.27.1</version>
-        </dependency>
+       </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
