@@ -7,6 +7,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Iterator;
 
 import org.locationtech.jts.geom.Envelope;
@@ -42,9 +43,9 @@ public class FlatgeobufMmap implements AutoCloseable {
     }
     
     public Iterator<Feature> boundingBoxSearch(Envelope e, int offset) {
-        return PackedRTree.search(mmap.duplicate().order(ByteOrder.LITTLE_ENDIAN), meta.offset, (int) meta.featuresCount, meta.indexNodeSize, e).stream()
+        return Arrays.stream(FlatgeobufGeometryIndex.bbox(mmap.duplicate().order(ByteOrder.LITTLE_ENDIAN), meta.offset, (int) meta.featuresCount, meta.indexNodeSize, e))
                 .skip(offset)
-                .map(x -> readFeature((int) x.offset))
+                .mapToObj(x -> readFeature((int) x))
                 .iterator();
     }
 
