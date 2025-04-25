@@ -91,7 +91,8 @@ public class FlatgeobufFeatureValueProvider2 implements ValueProvider {
         int off = propertyOffsets[i - 1];
         int n = propertiesBuffer.getInt(off);
         byte[] buf = new byte[n];
-        propertiesBuffer.get(off + 4, buf, 0, n);
+        propertiesBuffer.position(off + 4);
+        propertiesBuffer.get(buf, 0, n);
         return new String(buf, 0, n, StandardCharsets.UTF_8);
     }
 
