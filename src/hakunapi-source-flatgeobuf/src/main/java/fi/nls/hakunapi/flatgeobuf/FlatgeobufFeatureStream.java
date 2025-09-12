@@ -27,13 +27,14 @@ public class FlatgeobufFeatureStream implements FeatureStream {
     private boolean closed;
 
 
-    public FlatgeobufFeatureStream(HeaderMeta meta, FlatgeobufMmap fgb, Function<FlatgeobufMmap, Iterator<Feature>> featureLoop, Predicate<ValueProvider> filterFn, List<ValueMapper> valueMappers) {
+    public FlatgeobufFeatureStream(HeaderMeta meta, FlatgeobufMmap fgb, Function<FlatgeobufMmap, Iterator<Feature>> featureLoop, int offset, Predicate<ValueProvider> filterFn, List<ValueMapper> valueMappers) {
         this.fgb = fgb;
         this.featureLoop = featureLoop;
         this.filterFn = filterFn;
         this.provider = new FlatgeobufFeatureValueProvider2(meta.geometryType, meta.srid, meta.columns);
         this.next = new ObjectArrayValueContainer(1 + meta.columns.size());
         this.valueMappers = valueMappers;
+        for (int i = 0; i < offset && hasNext(); i++); // Skip offset
     }
 
     @Override

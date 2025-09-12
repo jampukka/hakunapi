@@ -42,9 +42,8 @@ public class FlatgeobufMmap implements AutoCloseable {
         return meta;
     }
     
-    public Iterator<Feature> boundingBoxSearch(Envelope e, int offset) {
+    public Iterator<Feature> boundingBoxSearch(Envelope e) {
         return Arrays.stream(FlatgeobufGeometryIndex.bbox(mmap.duplicate().order(ByteOrder.LITTLE_ENDIAN), meta.offset, (int) meta.featuresCount, meta.indexNodeSize, e))
-                .skip(offset)
                 .mapToObj(x -> readFeature((int) x))
                 .iterator();
     }
@@ -58,8 +57,8 @@ public class FlatgeobufMmap implements AutoCloseable {
         fc.close();
     }
     
-    public FgbFeatureIterator all(int offset) {
-        return new FgbFeatureIterator(featuresOffset, offset, (int) meta.featuresCount, mmap);
+    public FgbFeatureIterator all() {
+        return new FgbFeatureIterator(featuresOffset, (int) meta.featuresCount, mmap);
     }
     
     public final class FgbFeatureIterator implements Iterator<Feature> {
@@ -71,20 +70,11 @@ public class FlatgeobufMmap implements AutoCloseable {
         private int byteOffset;
         private int i;
         
-        private FgbFeatureIterator(long featuresOffset, int offset, int featuresCount, ByteBuffer mmap) {
+        private FgbFeatureIterator(long featuresOffset, int featuresCount, ByteBuffer mmap) {
             this.byteOffset = (int) featuresOffset;
             this.featuresCount = featuresCount;
             this.f = new Feature();
             this.mmap = mmap;
-            if (offset >= featuresCount)  {
-                i = offset;
-            } else {
-                for (i = 0; i < offset; i++) {
-                    int size = mmap.getInt(byteOffset);
-                    byteOffset += 4;
-                    byteOffset += size;
-                }
-            }
         }
         
         public int getNextFeatureByteOffset() {

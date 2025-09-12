@@ -2,7 +2,9 @@ package fi.nls.hakunapi.flatgeobuf;
 
 import java.io.File;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,10 +21,14 @@ import fi.nls.hakunapi.core.property.HakunaProperty;
 import fi.nls.hakunapi.core.property.HakunaPropertyType;
 import fi.nls.hakunapi.core.property.HakunaPropertyWriter;
 import fi.nls.hakunapi.core.property.HakunaPropertyWriters;
+import fi.nls.hakunapi.core.property.simple.HakunaPropertyBoolean;
+import fi.nls.hakunapi.core.property.simple.HakunaPropertyDouble;
+import fi.nls.hakunapi.core.property.simple.HakunaPropertyFloat;
 import fi.nls.hakunapi.core.property.simple.HakunaPropertyGeometry;
 import fi.nls.hakunapi.core.property.simple.HakunaPropertyInt;
 import fi.nls.hakunapi.core.property.simple.HakunaPropertyLong;
 import fi.nls.hakunapi.core.property.simple.HakunaPropertyString;
+import fi.nls.hakunapi.core.property.simple.HakunaPropertyTimestamp;
 
 public class FlatgeobufSource implements SimpleSource {
 
@@ -48,13 +54,47 @@ public class FlatgeobufSource implements SimpleSource {
 
         ft.setId(getIdProperty(ft, cfg.getRequired(p + "id.mapping")));
         ft.setGeom(toHakunaGeometryProperty(collectionId, ft.meta, srids, cfgSrid));
-        ft.setProperties(new ArrayList<>());
+        ft.setProperties(toProperties(ft.meta, ft.getId().getColumn()));
 
         if (ft.getId() != null) {
             ft.constructIdIndex();
         }
 
         return ft;
+    }
+
+    private List<HakunaProperty> toProperties(HeaderMeta meta, String idColumnName) {
+        return meta.columns.stream()
+                .map(this::toProperty)
+                .filter(Objects::nonNull)
+                .filter(p -> !p.getColumn().equals(idColumnName))
+                .collect(Collectors.toList());
+    }
+    
+    private HakunaProperty toProperty(ColumnMeta column) {
+        String name = column.name;
+        String col = column.name;
+        boolean nullable = false;
+        boolean unique = true;
+        switch (column.type) {
+        case ColumnType.Bool:
+            return new HakunaPropertyBoolean(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.BOOLEAN));
+        case ColumnType.Int:
+            return new HakunaPropertyInt(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.INT));
+        case ColumnType.Long:
+            return new HakunaPropertyLong(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.LONG));
+        case ColumnType.Float:
+            return new HakunaPropertyFloat(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.FLOAT));
+        case ColumnType.Double:
+            return new HakunaPropertyDouble(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.DOUBLE));
+        case ColumnType.DateTime:
+            return new HakunaPropertyTimestamp(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.TIMESTAMP));
+        case ColumnType.String:
+            return new HakunaPropertyString(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.STRING));
+        default:
+            return null;
+            // throw new IllegalArgumentException("Unsupported column type: " + column.type);
+        }
     }
 
     private File getFile(String name, Path configPath) {

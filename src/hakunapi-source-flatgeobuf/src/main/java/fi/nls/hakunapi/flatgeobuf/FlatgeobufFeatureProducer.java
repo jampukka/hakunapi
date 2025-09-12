@@ -25,7 +25,6 @@ import fi.nls.hakunapi.core.filter.LikeFilter;
 import fi.nls.hakunapi.core.projection.ProjectionHelper;
 import fi.nls.hakunapi.core.property.HakunaProperty;
 import fi.nls.hakunapi.core.property.simple.HakunaPropertyGeometry;
-import fi.nls.hakunapi.core.property.simple.HakunaPropertyInt;
 import fi.nls.hakunapi.core.request.GetFeatureCollection;
 import fi.nls.hakunapi.core.request.GetFeatureRequest;
 import fi.nls.hakunapi.core.util.EmptyFeatureStream;
@@ -55,11 +54,11 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
             Geometry geom = ProjectionHelper.reprojectToStorageCRS(prop, (Geometry) f.getValue());
             Envelope envelope = geom.getEnvelopeInternal();
             Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and);
-            return new FlatgeobufFeatureStream(ft.meta, ft.open(), fgb -> fgb.boundingBoxSearch(envelope, request.getOffset()), filterFn, mappers);
+            return new FlatgeobufFeatureStream(ft.meta, ft.open(), fgb -> fgb.boundingBoxSearch(envelope), request.getOffset(), filterFn, mappers);
         }
 
         Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and); 
-        return new FlatgeobufFeatureStream(ft.meta, ft.open(), fgb -> fgb.all(request.getOffset()), filterFn, mappers);
+        return new FlatgeobufFeatureStream(ft.meta, ft.open(), fgb -> fgb.all(), request.getOffset(), filterFn, mappers);
     }
 
     @Override
@@ -165,13 +164,13 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
             case NOT_EQUAL_TO:
                 return vp -> !vp.isNull(i) && !c.equals(vp.getObject(i));
             case GREATER_THAN:
-                return vp -> !vp.isNull(i) && c.compareTo(vp.getObject(i)) > 0;
-            case GREATER_THAN_OR_EQUAL_TO:
-                return vp -> !vp.isNull(i) && c.compareTo(vp.getObject(i)) >= 0;
-            case LESS_THAN:
-                return vp -> !vp.isNull(i) && c.compareTo(vp.getObject(i)) < 0;
-            case LESS_THAN_OR_EQUAL_TO:
                 return vp -> !vp.isNull(i) && c.compareTo(vp.getObject(i)) <= 0;
+            case GREATER_THAN_OR_EQUAL_TO:
+                return vp -> !vp.isNull(i) && c.compareTo(vp.getObject(i)) > 0;
+            case LESS_THAN:
+                return vp -> !vp.isNull(i) && c.compareTo(vp.getObject(i)) >= 0;
+            case LESS_THAN_OR_EQUAL_TO:
+                return vp -> !vp.isNull(i) && c.compareTo(vp.getObject(i)) > 0;
             }
         }
         if (value instanceof Geometry) {
