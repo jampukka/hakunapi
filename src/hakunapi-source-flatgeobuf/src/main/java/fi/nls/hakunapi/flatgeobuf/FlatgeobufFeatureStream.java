@@ -20,7 +20,7 @@ public class FlatgeobufFeatureStream implements FeatureStream {
     private final FlatgeobufMmap fgb;
     private final Function<FlatgeobufMmap, Iterator<Feature>> featureLoop;
     private final Predicate<ValueProvider> filterFn;
-    private final FlatgeobufFeatureValueProvider2 provider;
+    private final FlatgeobufFeatureValueProvider provider;
     private final List<ValueMapper> valueMappers;
     private final ValueContainer next;
     private Iterator<Feature> featureIterator;
@@ -31,7 +31,7 @@ public class FlatgeobufFeatureStream implements FeatureStream {
         this.fgb = fgb;
         this.featureLoop = featureLoop;
         this.filterFn = filterFn;
-        this.provider = new FlatgeobufFeatureValueProvider2(meta.geometryType, meta.srid, meta.columns);
+        this.provider = new FlatgeobufFeatureValueProvider(meta.geometryType, meta.srid, meta.columns);
         this.next = new ObjectArrayValueContainer(1 + meta.columns.size());
         this.valueMappers = valueMappers;
         for (int i = 0; i < offset && hasNext(); i++); // Skip offset
