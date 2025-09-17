@@ -108,7 +108,25 @@ public class FlatgeobufFeatureValueProvider implements ValueProvider {
             return null;
         }
         int n = propertiesBuffer.getInt(off);
-        return LocalDateTime.parse(new AsciiCharSequence(n, off + 4, propertiesBuffer));
+        return parseLocalDateTime(propertiesBuffer, n, off + 4);
+    }
+
+    private static LocalDateTime parseLocalDateTime(ByteBuffer bb, int n, int off) {
+        int yy = (bb.get(off +  0) - '0') * 1000 + (bb.get(off +  1) - '0') * 100 + (bb.get(off + 2) - '0') * 10 + (bb.get(off + 3) - '0');
+        int mo = (bb.get(off +  5) - '0') *   10 + (bb.get(off +  6) - '0');
+        int dd = (bb.get(off +  8) - '0') *   10 + (bb.get(off +  9) - '0');
+        int hh = (bb.get(off + 11) - '0') *   10 + (bb.get(off + 12) - '0');
+        int mi = (bb.get(off + 14) - '0') *   10 + (bb.get(off + 15) - '0');
+        int ss = (bb.get(off + 17) - '0') *   10 + (bb.get(off + 18) - '0');
+        int ns = 0;
+        int i = 19;
+        if (bb.get(off + i) == '.') {
+            i++;
+            for (; i < n; i++) {
+                ns = ns * 10 + (bb.get(off + i) - '0');
+            }
+        }
+        return LocalDateTime.of(yy, mo, dd, hh, mi, ss, ns);
     }
 
     @Override

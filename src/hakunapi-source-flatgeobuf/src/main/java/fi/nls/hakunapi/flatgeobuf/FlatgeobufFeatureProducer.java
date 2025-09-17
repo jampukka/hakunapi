@@ -44,7 +44,8 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
         QueryContext ctx = new QueryContext();
         ctx.setSRID(request.getSRID());
 
-        List<ValueMapper> mappers = select(ft, col.getProperties(), ctx);
+        List<ValueMapper> mappers = new ArrayList<>();
+        int maxIValueContainer = select(ft, col.getProperties(), ctx, mappers);
 
         Optional<Filter> intersectsFilter = filters.stream().filter(f -> f.getOp() == FilterOp.INTERSECTS || f.getOp() == FilterOp.INTERSECTS_INDEX).findAny();
         if (intersectsFilter.isPresent()) {
@@ -54,11 +55,11 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
             Geometry geom = ProjectionHelper.reprojectToStorageCRS(prop, (Geometry) f.getValue());
             Envelope envelope = geom.getEnvelopeInternal();
             Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and);
-            return new FlatgeobufFeatureStream(ft.meta, ft.open(), fgb -> fgb.boundingBoxSearch(envelope), request.getOffset(), filterFn, mappers);
+            return new FlatgeobufFeatureStream(ft.meta, ft.open(), fgb -> fgb.boundingBoxSearch(envelope), request.getOffset(), filterFn, mappers, maxIValueContainer);
         }
 
         Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and); 
-        return new FlatgeobufFeatureStream(ft.meta, ft.open(), fgb -> fgb.all(), request.getOffset(), filterFn, mappers);
+        return new FlatgeobufFeatureStream(ft.meta, ft.open(), fgb -> fgb.all(), request.getOffset(), filterFn, mappers, maxIValueContainer);
     }
 
     @Override
@@ -71,7 +72,7 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
         return 0;
     }
 
-    private static List<ValueMapper> select(FlatgeobufFeatureType ft, List<HakunaProperty> properties, QueryContext ctx) {
+    private static int select(FlatgeobufFeatureType ft, List<HakunaProperty> properties, QueryContext ctx, List<ValueMapper> mappersOut) {
         List<ColumnMeta> allColumns = ft.meta.columns;
         Map<StringPair, Integer> columnToIndex = new HashMap<>();
         for (HakunaProperty property : properties) {
@@ -82,12 +83,11 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
             }
         }
 
-        List<ValueMapper> mappers = new ArrayList<>();
         int iValueContainer = 0;
         for (HakunaProperty property : properties) {
-            mappers.add(property.getMapper(columnToIndex, iValueContainer++, ctx));
+            mappersOut.add(property.getMapper(columnToIndex, iValueContainer++, ctx));
         }
-        return mappers;
+        return iValueContainer;
     }
 
     private Predicate<ValueProvider> toPredicate(FlatgeobufFeatureType ft, List<Filter> filters, BinaryOperator<Predicate<ValueProvider>> reduce) {
