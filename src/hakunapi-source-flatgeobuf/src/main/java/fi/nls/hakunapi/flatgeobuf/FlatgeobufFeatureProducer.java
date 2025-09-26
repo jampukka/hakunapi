@@ -47,19 +47,23 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
         List<ValueMapper> mappers = new ArrayList<>();
         int maxIValueContainer = select(ft, col.getProperties(), ctx, mappers);
 
+        FlatgeobufMmap flatgeobuf = ft.open();
+
         Optional<Filter> intersectsFilter = filters.stream().filter(f -> f.getOp() == FilterOp.INTERSECTS || f.getOp() == FilterOp.INTERSECTS_INDEX).findAny();
         if (intersectsFilter.isPresent()) {
             Filter f = intersectsFilter.get();
-            filters.remove(f);
             HakunaPropertyGeometry prop = (HakunaPropertyGeometry) f.getProp();
             Geometry geom = ProjectionHelper.reprojectToStorageCRS(prop, (Geometry) f.getValue());
             Envelope envelope = geom.getEnvelopeInternal();
-            Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and);
-            return new FlatgeobufFeatureStream(ft.meta, ft.open(), fgb -> fgb.boundingBoxSearch(envelope), request.getOffset(), filterFn, mappers, maxIValueContainer);
+            if (!envelope.contains(ft.meta.envelope)) {
+                filters.remove(f);
+                Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and);
+                return new FlatgeobufFeatureStream(ft.meta, flatgeobuf, fgb -> fgb.boundingBoxSearch(envelope), request.getOffset(), filterFn, mappers, maxIValueContainer);
+            }
         }
 
         Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and); 
-        return new FlatgeobufFeatureStream(ft.meta, ft.open(), fgb -> fgb.all(), request.getOffset(), filterFn, mappers, maxIValueContainer);
+        return new FlatgeobufFeatureStream(ft.meta, flatgeobuf, fgb -> fgb.all(), request.getOffset(), filterFn, mappers, maxIValueContainer);
     }
 
     @Override

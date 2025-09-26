@@ -29,8 +29,4 @@ public class FlatgeobufFeatureType extends SimpleFeatureType {
         return new FlatgeobufMmap(file.toPath(), meta);
     }
 
-    public void constructIdIndex() {
-        
-    }
-
 }

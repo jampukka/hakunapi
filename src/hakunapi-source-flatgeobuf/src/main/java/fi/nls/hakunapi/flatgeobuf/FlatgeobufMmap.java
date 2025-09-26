@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.stream.LongStream;
 
 import org.locationtech.jts.geom.Envelope;
 import org.wololo.flatgeobuf.HeaderMeta;
@@ -42,8 +43,18 @@ public class FlatgeobufMmap implements AutoCloseable {
         return meta;
     }
     
+    public LongStream boundingBoxStream(Envelope e) {
+        return FlatgeobufGeometryIndex.bboxStream(mmap.duplicate().order(ByteOrder.LITTLE_ENDIAN), meta.offset, (int) meta.featuresCount, meta.indexNodeSize, e);
+    }
+    
     public Iterator<Feature> boundingBoxSearch(Envelope e) {
-        return Arrays.stream(FlatgeobufGeometryIndex.bbox(mmap.duplicate().order(ByteOrder.LITTLE_ENDIAN), meta.offset, (int) meta.featuresCount, meta.indexNodeSize, e))
+        return boundingBoxStream(e)
+                .mapToObj(x -> readFeature((int) x))
+                .iterator();
+    }
+    
+    public Iterator<Feature> features(long[] offsets) {
+        return Arrays.stream(offsets)
                 .mapToObj(x -> readFeature((int) x))
                 .iterator();
     }

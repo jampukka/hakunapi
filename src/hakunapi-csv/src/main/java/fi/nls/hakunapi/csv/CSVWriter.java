@@ -5,11 +5,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
+import com.fasterxml.jackson.core.io.NumberOutput;
+
 import fi.nls.hakunapi.core.FloatingPointFormatter;
 import fi.nls.hakunapi.core.GeometryWriter;
 import fi.nls.hakunapi.core.geom.HakunaGeometry;
 import fi.nls.hakunapi.core.geom.HakunaGeometryType;
-import fi.nls.hakunapi.core.util.IToA;
 import fi.nls.hakunapi.core.util.UTF8;
 
 public class CSVWriter implements AutoCloseable, Flushable {
@@ -113,7 +114,7 @@ public class CSVWriter implements AutoCloseable, Flushable {
         if (pos + 12 >= BUF_LEN) {
             flush();
         }
-        pos = IToA.itoa(v, buf, pos);
+        pos = NumberOutput.outputInt(v, buf, pos);
         writeCommaOrLineFeed();
     }
 
@@ -121,7 +122,7 @@ public class CSVWriter implements AutoCloseable, Flushable {
         if (pos + 22 >= BUF_LEN) {
             flush();
         }
-        pos = IToA.ltoa(v, buf, pos);
+        pos = NumberOutput.outputLong(v, buf, pos);
         writeCommaOrLineFeed();
     }
 
@@ -142,7 +143,7 @@ public class CSVWriter implements AutoCloseable, Flushable {
     }
 
     public void writeGeometry(HakunaGeometry geometry) throws Exception {
-        geometry.write(new WKT(false));
+        geometry.write(new WKT());
     }
 
     public void writeString(String s) throws IOException {
@@ -294,25 +295,17 @@ public class CSVWriter implements AutoCloseable, Flushable {
     private class WKT implements GeometryWriter {
 
         private boolean isPoint;
-        private boolean extended;
         private boolean comma;
-
-        public WKT(boolean extended) {
-            this.extended = extended;
-        }
+        private int estimatedNumBytesPerCoordinate; 
 
         @Override
         public void init(HakunaGeometryType type, int srid, int dimension) throws Exception {
             writeASCII(QUOTE);
-
-            if (extended) {
-                String extension = "SRID=" + srid + ";";
-                writeASCII(extension.getBytes(StandardCharsets.US_ASCII));
-            }
+            
+            this.estimatedNumBytesPerCoordinate = 2 + dimension * (22 + formatter.maxDecimalsOrdinate()); 
 
             switch (type) {
-            case POINT:
-                isPoint = true;
+            case POINT:                
                 writeASCII(POINT);
                 break;
             case LINESTRING:
@@ -360,7 +353,7 @@ public class CSVWriter implements AutoCloseable, Flushable {
 
         @Override
         public void writeCoordinate(double x, double y) throws Exception {
-            if (pos + 2 + 2 * (22 + formatter.maxDecimalsOrdinate()) >= BUF_LEN) {
+            if (pos + estimatedNumBytesPerCoordinate >= BUF_LEN) {
                 flush();
             }
             if (comma) {
@@ -375,7 +368,7 @@ public class CSVWriter implements AutoCloseable, Flushable {
         @Override
         public void writeCoordinate(double x, double y, double z) throws Exception {
             // [,]x y z
-            if (pos + 2 + 3 * (22 + formatter.maxDecimalsOrdinate()) >= BUF_LEN) {
+            if (pos + estimatedNumBytesPerCoordinate >= BUF_LEN) {
                 flush();
             }
             if (comma) {
@@ -391,7 +384,7 @@ public class CSVWriter implements AutoCloseable, Flushable {
         @Override
         public void writeCoordinate(double x, double y, double z, double m) throws Exception {
             // [,]x y
-            if (pos + 2 + 4 * (22 + formatter.maxDecimalsOrdinate()) >= BUF_LEN) {
+            if (pos + estimatedNumBytesPerCoordinate >= BUF_LEN) {
                 flush();
             }
             if (comma) {
