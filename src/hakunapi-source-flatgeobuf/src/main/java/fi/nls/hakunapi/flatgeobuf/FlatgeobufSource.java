@@ -56,10 +56,6 @@ public class FlatgeobufSource implements SimpleSource {
         ft.setGeom(toHakunaGeometryProperty(collectionId, ft.meta, srids, cfgSrid));
         ft.setProperties(toProperties(ft.meta, ft.getId().getColumn()));
 
-        if (ft.getId() != null) {
-            ft.constructIdIndex();
-        }
-
         return ft;
     }
 
@@ -74,8 +70,8 @@ public class FlatgeobufSource implements SimpleSource {
     private HakunaProperty toProperty(ColumnMeta column) {
         String name = column.name;
         String col = column.name;
-        boolean nullable = false;
-        boolean unique = true;
+        boolean nullable = column.nullable;
+        boolean unique = column.unique;
         switch (column.type) {
         case ColumnType.Bool:
             return new HakunaPropertyBoolean(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.BOOLEAN));
