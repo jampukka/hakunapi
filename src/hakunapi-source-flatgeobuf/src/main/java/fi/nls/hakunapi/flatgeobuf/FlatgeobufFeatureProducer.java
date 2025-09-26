@@ -1,10 +1,7 @@
 package fi.nls.hakunapi.flatgeobuf;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.BinaryOperator;
 import java.util.function.Predicate;
@@ -17,7 +14,6 @@ import org.wololo.flatgeobuf.ColumnMeta;
 import fi.nls.hakunapi.core.FeatureProducer;
 import fi.nls.hakunapi.core.FeatureStream;
 import fi.nls.hakunapi.core.QueryContext;
-import fi.nls.hakunapi.core.ValueMapper;
 import fi.nls.hakunapi.core.ValueProvider;
 import fi.nls.hakunapi.core.filter.Filter;
 import fi.nls.hakunapi.core.filter.FilterOp;
@@ -28,7 +24,6 @@ import fi.nls.hakunapi.core.property.simple.HakunaPropertyGeometry;
 import fi.nls.hakunapi.core.request.GetFeatureCollection;
 import fi.nls.hakunapi.core.request.GetFeatureRequest;
 import fi.nls.hakunapi.core.util.EmptyFeatureStream;
-import fi.nls.hakunapi.core.util.StringPair;
 
 public class FlatgeobufFeatureProducer implements FeatureProducer {
 
@@ -44,8 +39,7 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
         QueryContext ctx = new QueryContext();
         ctx.setSRID(request.getSRID());
 
-        List<ValueMapper> mappers = new ArrayList<>();
-        int maxIValueContainer = select(ft, col.getProperties(), ctx, mappers);
+        int[] indexMap = select(ft, col.getProperties(), ctx);
 
         FlatgeobufMmap flatgeobuf = ft.open();
 
@@ -58,12 +52,12 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
             if (!envelope.contains(ft.meta.envelope)) {
                 filters.remove(f);
                 Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and);
-                return new FlatgeobufFeatureStream(ft.meta, flatgeobuf, fgb -> fgb.boundingBoxSearch(envelope), request.getOffset(), filterFn, mappers, maxIValueContainer);
+                return new FlatgeobufFeatureStream(ft.meta, flatgeobuf, fgb -> fgb.boundingBoxSearch(envelope), request.getOffset(), filterFn, indexMap);
             }
         }
 
         Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and); 
-        return new FlatgeobufFeatureStream(ft.meta, flatgeobuf, fgb -> fgb.all(), request.getOffset(), filterFn, mappers, maxIValueContainer);
+        return new FlatgeobufFeatureStream(ft.meta, flatgeobuf, fgb -> fgb.all(), request.getOffset(), filterFn, indexMap);
     }
 
     @Override
@@ -76,22 +70,18 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
         return 0;
     }
 
-    private static int select(FlatgeobufFeatureType ft, List<HakunaProperty> properties, QueryContext ctx, List<ValueMapper> mappersOut) {
+    private static int[] select(FlatgeobufFeatureType ft, List<HakunaProperty> properties, QueryContext ctx) {
         List<ColumnMeta> allColumns = ft.meta.columns;
-        Map<StringPair, Integer> columnToIndex = new HashMap<>();
-        for (HakunaProperty property : properties) {
+        int[] indexMap = new int[properties.size()];
+        for (int i = 0; i < properties.size(); i++) {
+            HakunaProperty property = properties.get(i);
             if (property instanceof HakunaPropertyGeometry) {
-                columnToIndex.put(new StringPair(property.getTable(), property.getColumn()), 0);
+                indexMap[i] = 0;
             } else {
-                columnToIndex.put(new StringPair(property.getTable(), property.getColumn()), 1 + indexOf(allColumns, property.getColumn()));
+                indexMap[i] = 1 + indexOf(allColumns, property.getColumn());
             }
         }
-
-        int iValueContainer = 0;
-        for (HakunaProperty property : properties) {
-            mappersOut.add(property.getMapper(columnToIndex, iValueContainer++, ctx));
-        }
-        return iValueContainer;
+        return indexMap;
     }
 
     private Predicate<ValueProvider> toPredicate(FlatgeobufFeatureType ft, List<Filter> filters, BinaryOperator<Predicate<ValueProvider>> reduce) {
