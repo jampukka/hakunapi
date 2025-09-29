@@ -60,27 +60,27 @@ public class FlatgeobufFeatureValueProvider implements ValueProvider {
 
     @Override
     public Boolean getBoolean(int i) {
-        return isNull(i) ? null : propertiesBuffer.get(propertyOffsets[i - 1]) > 0;
+        return propertiesBuffer.get(propertyOffsets[i - 1]) > 0;
     }
 
     @Override
     public Integer getInt(int i) {
-        return isNull(i) ? null : propertiesBuffer.getInt(propertyOffsets[i - 1]);
+        return propertiesBuffer.getInt(propertyOffsets[i - 1]);
     }
 
     @Override
     public Long getLong(int i) {
-        return isNull(i) ? null : propertiesBuffer.getLong(propertyOffsets[i - 1]);
+        return propertiesBuffer.getLong(propertyOffsets[i - 1]);
     }
 
     @Override
     public Float getFloat(int i) {
-        return isNull(i) ? null : propertiesBuffer.getFloat(propertyOffsets[i - 1]);
+        return propertiesBuffer.getFloat(propertyOffsets[i - 1]);
     }
 
     @Override
     public Double getDouble(int i) {
-        return isNull(i) ? null : propertiesBuffer.getDouble(propertyOffsets[i - 1]);
+        return propertiesBuffer.getDouble(propertyOffsets[i - 1]);
     }
 
     @Override
