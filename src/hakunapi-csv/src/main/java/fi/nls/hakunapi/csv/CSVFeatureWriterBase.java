@@ -9,6 +9,7 @@ import java.util.List;
 
 import fi.nls.hakunapi.core.FeatureWriter;
 import fi.nls.hakunapi.core.FloatingPointFormatter;
+import fi.nls.hakunapi.core.SRIDCode;
 import fi.nls.hakunapi.core.geom.HakunaGeometry;
 import fi.nls.hakunapi.core.property.HakunaPropertyType;
 import fi.nls.hakunapi.core.schemas.Link;
@@ -29,27 +30,22 @@ public abstract class CSVFeatureWriterBase implements FeatureWriter {
             HakunaPropertyType.UUID
     );
 
+    protected FloatingPointFormatter formatter; 
+
     protected CSVWriter csv;
     protected int srid;
     protected int array;
     protected int object;
-    protected StringBuilder strBuf = new StringBuilder(24);
+    protected StringBuilder strBuf = new StringBuilder(32);
 
-
-    @Override
-    public String getMimeType() {
-        return OutputFormatCSV.MIME_TYPE;
+    public void setFormatter(FloatingPointFormatter formatter) {
+        this.formatter = formatter;
     }
 
     @Override
-    public int getSrid() {
-        return srid;
-    }
-
-    @Override
-    public void init(OutputStream out, FloatingPointFormatter formatter, int srid) throws Exception {
+    public void init(OutputStream out, SRIDCode srid) throws Exception {
         this.csv = new CSVWriter(out, formatter);
-        this.srid = srid;
+        this.srid = srid.getSrid();
     }
 
     @Override
