@@ -3,6 +3,7 @@ package fi.nls.hakunapi.csv;
 import java.io.OutputStream;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -32,6 +33,7 @@ public abstract class CSVFeatureWriterBase implements FeatureWriter {
     protected int srid;
     protected int array;
     protected int object;
+    protected StringBuilder strBuf = new StringBuilder(24);
 
 
     @Override
@@ -96,7 +98,7 @@ public abstract class CSVFeatureWriterBase implements FeatureWriter {
         if (value == null) {
             writeNullProperty(name);
         } else {
-            writeProperty(name, value.toString());
+            csv.writeLocalDate(value);
         }
     }
 
@@ -105,7 +107,9 @@ public abstract class CSVFeatureWriterBase implements FeatureWriter {
         if (value == null) {
             writeNullProperty(name);
         } else {
-            writeProperty(name, value.toString());
+            strBuf.setLength(0);
+            DateTimeFormatter.ISO_INSTANT.formatTo(value, strBuf);
+            csv.writeASCIIString(strBuf);
         }
     }
 

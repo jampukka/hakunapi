@@ -3,9 +3,14 @@ package fi.nls.hakunapi.geojson.hakuna;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+
+import com.fasterxml.jackson.core.io.NumberOutput;
 
 import fi.nls.hakunapi.core.FloatingPointFormatter;
-import fi.nls.hakunapi.core.util.IToA;
+import fi.nls.hakunapi.core.util.LocalDateOutput;
 import fi.nls.hakunapi.core.util.UTF8;
 
 public class HakunaJsonWriter implements AutoCloseable, Flushable {
@@ -51,6 +56,8 @@ public class HakunaJsonWriter implements AutoCloseable, Flushable {
     private long stack;
     private boolean comma;
 
+    private StringBuilder instantBuf;
+
     public HakunaJsonWriter(OutputStream out, FloatingPointFormatter formatter) {
         this.out = out;
         this.numberPropertyFormatter = formatter;
@@ -59,6 +66,7 @@ public class HakunaJsonWriter implements AutoCloseable, Flushable {
         this.state = STATE_INIT;
         this.stack = state;
         this.comma = false;
+        this.instantBuf = new StringBuilder(32);
     }
 
     public boolean insideArray() {
@@ -316,7 +324,7 @@ public class HakunaJsonWriter implements AutoCloseable, Flushable {
             if (pos + 11 >= BUF_LEN) {
                 flush();
             }
-            pos = IToA.itoa(v, buf, pos);
+            pos = NumberOutput.outputInt(v, buf, pos);
             comma = true;
             state >>>= 1; // STATE_ARRAY => STATE_ARRAY, STATE_OBJ_VALUE => STATE_OBJ_KEY
             break;
@@ -338,7 +346,7 @@ public class HakunaJsonWriter implements AutoCloseable, Flushable {
             if (pos + 21 >= BUF_LEN) {
                 flush();
             }
-            pos = IToA.ltoa(v, buf, pos);
+            pos = NumberOutput.outputLong(v, buf, pos);
             comma = true;
             state >>>= 1; // STATE_ARRAY => STATE_ARRAY, STATE_OBJ_VALUE => STATE_OBJ_KEY
             break;
@@ -385,6 +393,58 @@ public class HakunaJsonWriter implements AutoCloseable, Flushable {
                 flush();
             }
             pos = numberPropertyFormatter.writeDouble(v, buf, pos);
+            comma = true;
+            state >>>= 1; // STATE_ARRAY => STATE_ARRAY, STATE_OBJ_VALUE => STATE_OBJ_KEY
+            break;
+        default:
+            throw new IllegalStateException();
+        }
+    }
+
+    public void writeLocalDate(LocalDate date) throws IOException {
+        switch (state) {
+        case STATE_ARRAY:
+            if (pos + 1 >= BUF_LEN) {
+                flush();
+            }
+            if (comma) {
+                buf[pos++] = COMMA;
+            }
+        case STATE_OBJ_VALUE:
+            if (pos + 2 + LocalDateOutput.MAX_BYTE_LEN >= BUF_LEN) {
+                flush();
+            }
+            buf[pos++] = QUOTE;
+            pos = LocalDateOutput.outputLocalDate(date, buf, pos);
+            buf[pos++] = QUOTE;
+            comma = true;
+            state >>>= 1; // STATE_ARRAY => STATE_ARRAY, STATE_OBJ_VALUE => STATE_OBJ_KEY
+            break;
+        default:
+            throw new IllegalStateException();
+        }
+    }
+
+    public void writeInstant(Instant instant) throws IOException {
+        instantBuf.setLength(0);
+        DateTimeFormatter.ISO_INSTANT.formatTo(instant, instantBuf);
+        int len = instantBuf.length();
+
+        switch (state) {
+        case STATE_ARRAY:
+            if (pos + 1 >= BUF_LEN) {
+                flush();
+            }
+            if (comma) {
+                buf[pos++] = COMMA;
+            }
+        case STATE_OBJ_VALUE:
+            if (pos + 2 + len >= BUF_LEN) {
+                flush();
+            }
+            buf[pos++] = QUOTE;
+            writeASCII(instantBuf, len);
+            buf[pos++] = QUOTE;
             comma = true;
             state >>>= 1; // STATE_ARRAY => STATE_ARRAY, STATE_OBJ_VALUE => STATE_OBJ_KEY
             break;
@@ -536,7 +596,7 @@ public class HakunaJsonWriter implements AutoCloseable, Flushable {
         }
     }
 
-    protected void writeASCII(String s, int len) {
+    protected void writeASCII(CharSequence s, int len) {
         for (int i = 0; i < len; i++) {
             buf[pos++] = (byte) s.charAt(i);
         }

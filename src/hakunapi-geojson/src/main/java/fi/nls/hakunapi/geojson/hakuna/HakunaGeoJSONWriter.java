@@ -119,7 +119,7 @@ public abstract class HakunaGeoJSONWriter implements FeatureWriter {
     @Override
     public void writeTimeStamp() throws IOException {
         json.writeFieldName(TIMESTAMP);
-        json.writeString(Instant.now().toString());
+        json.writeInstant(Instant.now());
     }
 
     @Override
@@ -247,7 +247,7 @@ public abstract class HakunaGeoJSONWriter implements FeatureWriter {
             if (name != null) {
                 json.writeFieldName(getProperty(name));
             }
-            json.writeStringUnsafe(value.toString());
+            json.writeInstant(value);
         }
     }
 
@@ -258,7 +258,7 @@ public abstract class HakunaGeoJSONWriter implements FeatureWriter {
             if (name != null) {
                 json.writeFieldName(getProperty(name));
             }
-            json.writeStringUnsafe(value.toString());
+            json.writeLocalDate(value);
         }
     }
 
