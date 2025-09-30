@@ -20,7 +20,7 @@ import fi.nls.hakunapi.core.geom.HakunaGeometry;
 public class FlatgeobufFeatureValueProvider implements ValueProvider {
 
     private final Geometry g;
-    private final HakunaGeometryFGB fg;
+    private final HakunaGeometryFgb fg;
     private ByteBuffer propertiesBuffer;
     private final byte[] propertyTypes;
     private final int[] propertyOffsets;
@@ -31,7 +31,7 @@ public class FlatgeobufFeatureValueProvider implements ValueProvider {
             propertyTypes[i] = columns.get(i).type;
         }
         this.g = new Geometry();
-        this.fg = new HakunaGeometryFGB(geometryType, srid, g);
+        this.fg = new HakunaGeometryFgb(geometryType, srid, g);
         this.propertyOffsets = new int[columns.size()];
     }
 

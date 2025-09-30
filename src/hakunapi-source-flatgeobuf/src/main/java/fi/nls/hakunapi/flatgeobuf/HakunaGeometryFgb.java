@@ -18,13 +18,13 @@ import fi.nls.hakunapi.core.geom.HakunaGeometryFactory;
 import fi.nls.hakunapi.core.geom.HakunaGeometryJTS;
 import fi.nls.hakunapi.core.geom.HakunaGeometryType;
 
-public class HakunaGeometryFGB implements HakunaGeometry {
+public class HakunaGeometryFgb implements HakunaGeometry {
 
     private final int geometryType;
     private final int srid;
     private final Geometry g;
 
-    public HakunaGeometryFGB(int geometryType, int srid, Geometry g) {
+    public HakunaGeometryFgb(int geometryType, int srid, Geometry g) {
         this.geometryType = geometryType;
         this.srid = srid;
         this.g = g;

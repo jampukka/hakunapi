@@ -41,23 +41,21 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
 
         int[] indexMap = select(ft, col.getProperties(), ctx);
 
-        FlatgeobufMmap flatgeobuf = ft.open();
-
         Optional<Filter> intersectsFilter = filters.stream().filter(f -> f.getOp() == FilterOp.INTERSECTS || f.getOp() == FilterOp.INTERSECTS_INDEX).findAny();
         if (intersectsFilter.isPresent()) {
             Filter f = intersectsFilter.get();
             HakunaPropertyGeometry prop = (HakunaPropertyGeometry) f.getProp();
             Geometry geom = ProjectionHelper.reprojectToStorageCRS(prop, (Geometry) f.getValue());
             Envelope envelope = geom.getEnvelopeInternal();
-            if (!envelope.contains(ft.meta.envelope)) {
-                filters.remove(f);
+            filters.remove(f);
+            if (!envelope.contains(ft.fgb.meta.envelope)) {
                 Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and);
-                return new FlatgeobufFeatureStream(ft.meta, flatgeobuf, fgb -> fgb.boundingBoxSearch(envelope), request.getOffset(), filterFn, indexMap);
+                return new FlatgeobufFeatureStream(ft.fgb.meta, ft.fgb.boundingBoxSearch(envelope), request.getOffset(), filterFn, indexMap);
             }
         }
 
         Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and); 
-        return new FlatgeobufFeatureStream(ft.meta, flatgeobuf, fgb -> fgb.all(), request.getOffset(), filterFn, indexMap);
+        return new FlatgeobufFeatureStream(ft.fgb.meta, ft.fgb.all(), request.getOffset(), filterFn, indexMap);
     }
 
     @Override
@@ -65,13 +63,13 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
         FlatgeobufFeatureType ft = (FlatgeobufFeatureType) col.getFt();
         List<Filter> filters = col.getFilters();
         if (filters.isEmpty()) {
-            return (int) ft.meta.featuresCount;
+            return (int) ft.fgb.meta.featuresCount;
         }
         return 0;
     }
 
     private static int[] select(FlatgeobufFeatureType ft, List<HakunaProperty> properties, QueryContext ctx) {
-        List<ColumnMeta> allColumns = ft.meta.columns;
+        List<ColumnMeta> allColumns = ft.fgb.meta.columns;
         int[] indexMap = new int[properties.size()];
         for (int i = 0; i < properties.size(); i++) {
             HakunaProperty property = properties.get(i);
@@ -105,7 +103,7 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
         }
 
         HakunaProperty prop = filter.getProp();
-        int i = prop instanceof HakunaPropertyGeometry ? 0 : indexOf(ft.meta.columns, prop.getColumn()) + 1;
+        int i = prop instanceof HakunaPropertyGeometry ? 0 : indexOf(ft.fgb.meta.columns, prop.getColumn()) + 1;
 
         switch (filter.getOp()) {
         case NULL:

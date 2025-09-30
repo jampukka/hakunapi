@@ -1,6 +1,5 @@
 package fi.nls.hakunapi.flatgeobuf;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Spliterator;
@@ -44,7 +43,7 @@ public class FlatgeobufGeometryIndex {
         return levelBounds;
     }
     
-    public static LongStream bboxStream(ByteBuffer bb, int start, int numItems, int nodeSize, Envelope rect) {
+    public static LongStream bboxStream(BufferedFile file, int start, int numItems, int nodeSize, Envelope rect) {
         double minX = rect.getMinX();
         double minY = rect.getMinY();
         double maxX = rect.getMaxX();
@@ -94,18 +93,18 @@ public class FlatgeobufGeometryIndex {
                 // search through child nodes
                 for (int pos = nodeIndex; pos < end; pos++) {
                     int offset = nodeStart + ((pos - nodeIndex) * NODE_ITEM_LEN);
-                    double nodeMinX = bb.getDouble(offset + 0);
-                    double nodeMinY = bb.getDouble(offset + 8);
-                    double nodeMaxX = bb.getDouble(offset + 16);
-                    double nodeMaxY = bb.getDouble(offset + 24);
+                    double nodeMinX = file.getDouble(offset + 0);
+                    double nodeMinY = file.getDouble(offset + 8);
+                    double nodeMaxX = file.getDouble(offset + 16);
+                    double nodeMaxY = file.getDouble(offset + 24);
                     if (maxX < nodeMinX || maxY < nodeMinY || minX > nodeMaxX || minY > nodeMaxY) {
                         continue;
                     }
-                    long indexOffset = bb.getLong(offset + 32);
+                    long indexOffset = file.getLong(offset + 32);
                     if (isLeafNode) {
                         buf.add(indexOffset);
                     } else if (minX <= nodeMinX && minY <= nodeMinY && maxX >= nodeMaxX && maxY >= nodeMaxY) {
-                        all(bb, start, numItems, nodeSize, levelBounds, (int) indexOffset, level - 1, buf::add);
+                        all(file, start, numItems, nodeSize, levelBounds, (int) indexOffset, level - 1, buf::add);
                     } else {
                         queue.add((int) indexOffset, level - 1);
                     }
@@ -130,18 +129,18 @@ public class FlatgeobufGeometryIndex {
                     // search through child nodes
                     for (int pos = nodeIndex; pos < end; pos++) {
                         int offset = nodeStart + ((pos - nodeIndex) * NODE_ITEM_LEN);
-                        double nodeMinX = bb.getDouble(offset + 0);
-                        double nodeMinY = bb.getDouble(offset + 8);
-                        double nodeMaxX = bb.getDouble(offset + 16);
-                        double nodeMaxY = bb.getDouble(offset + 24);
+                        double nodeMinX = file.getDouble(offset + 0);
+                        double nodeMinY = file.getDouble(offset + 8);
+                        double nodeMaxX = file.getDouble(offset + 16);
+                        double nodeMaxY = file.getDouble(offset + 24);
                         if (maxX < nodeMinX || maxY < nodeMinY || minX > nodeMaxX || minY > nodeMaxY) {
                             continue;
                         }
-                        long indexOffset = bb.getLong(offset + 32);
+                        long indexOffset = file.getLong(offset + 32);
                         if (isLeafNode) {
                             action.accept(indexOffset);
                         } else if (minX <= nodeMinX && minY <= nodeMinY && maxX >= nodeMaxX && maxY >= nodeMaxY) {
-                            all(bb, start, numItems, nodeSize, levelBounds, (int) indexOffset, level - 1, action);
+                            all(file, start, numItems, nodeSize, levelBounds, (int) indexOffset, level - 1, action);
                         } else {
                             queue.add((int) indexOffset, level - 1);
                         }
@@ -153,7 +152,7 @@ public class FlatgeobufGeometryIndex {
         return StreamSupport.longStream(spliterator, false);
     }
 
-    public static long[] bbox(ByteBuffer bb, int start, int numItems, int nodeSize, Envelope rect) {
+    public static long[] bbox(BufferedFile file, int start, int numItems, int nodeSize, Envelope rect) {
         double minX = rect.getMinX();
         double minY = rect.getMinY();
         double maxX = rect.getMaxX();
@@ -176,18 +175,18 @@ public class FlatgeobufGeometryIndex {
             // search through child nodes
             for (int pos = nodeIndex; pos < end; pos++) {
                 int offset = nodeStart + ((pos - nodeIndex) * NODE_ITEM_LEN);
-                double nodeMinX = bb.getDouble(offset + 0);
-                double nodeMinY = bb.getDouble(offset + 8);
-                double nodeMaxX = bb.getDouble(offset + 16);
-                double nodeMaxY = bb.getDouble(offset + 24);
+                double nodeMinX = file.getDouble(offset + 0);
+                double nodeMinY = file.getDouble(offset + 8);
+                double nodeMaxX = file.getDouble(offset + 16);
+                double nodeMaxY = file.getDouble(offset + 24);
                 if (maxX < nodeMinX || maxY < nodeMinY || minX > nodeMaxX || minY > nodeMaxY) {
                     continue;
                 }
-                long indexOffset = bb.getLong(offset + 32);
+                long indexOffset = file.getLong(offset + 32);
                 if (isLeafNode) {
                     result.add(indexOffset);
                 } else if (minX <= nodeMinX && minY <= nodeMinY && maxX >= nodeMaxX && maxY >= nodeMaxY) {
-                    all(bb, start, numItems, nodeSize, levelBounds, (int) indexOffset, level - 1, result::add);
+                    all(file, start, numItems, nodeSize, levelBounds, (int) indexOffset, level - 1, result::add);
                 } else {
                     queue.add((int) indexOffset, level - 1);
                 }
@@ -197,7 +196,7 @@ public class FlatgeobufGeometryIndex {
         return result.toArray();
     }
     
-    private static void all(ByteBuffer bb, int start, int numItems, int nodeSize, int[] levelBounds, int nodeIndex, int level, LongConsumer consumer) {
+    private static void all(BufferedFile file, int start, int numItems, int nodeSize, int[] levelBounds, int nodeIndex, int level, LongConsumer consumer) {
         int numNodes = levelBounds[0];
         
         IntPairStack queue = new IntPairStack();
@@ -212,7 +211,7 @@ public class FlatgeobufGeometryIndex {
             int nodeStart = start + (nodeIndex * NODE_ITEM_LEN);
             for (int pos = nodeIndex; pos < end; pos++) {
                 int offset = nodeStart + ((pos - nodeIndex) * NODE_ITEM_LEN);
-                long indexOffset = bb.getLong(offset + 32);
+                long indexOffset = file.getLong(offset + 32);
                 if (isLeafNode) {
                     consumer.accept(indexOffset);
                 } else {

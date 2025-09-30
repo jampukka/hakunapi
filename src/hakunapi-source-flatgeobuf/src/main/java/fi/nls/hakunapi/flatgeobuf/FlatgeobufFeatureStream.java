@@ -2,9 +2,9 @@ package fi.nls.hakunapi.flatgeobuf;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
+import org.wololo.flatgeobuf.HeaderMeta;
 import org.wololo.flatgeobuf.generated.Feature;
 
 import fi.nls.hakunapi.core.FeatureStream;
@@ -20,10 +20,10 @@ public class FlatgeobufFeatureStream implements FeatureStream {
     private boolean closed;
     private boolean buffered;
 
-    public FlatgeobufFeatureStream(FlatgeobufOffheap fgb, Function<FlatgeobufOffheap, Iterator<Feature>> featureLoop, int offset, Predicate<ValueProvider> filterFn, int[] indexMap) {
-        this.featureIterator = featureLoop.apply(fgb);
+    public FlatgeobufFeatureStream(HeaderMeta meta, Iterator<Feature> featureIterator, int offset, Predicate<ValueProvider> filterFn, int[] indexMap) {
+        this.featureIterator = featureIterator;
         this.filterFn = filterFn;
-        this.provider = new FlatgeobufFeatureValueProvider(fgb.getHeaderMeta().geometryType, fgb.getHeaderMeta().srid, fgb.getHeaderMeta().columns);
+        this.provider = new FlatgeobufFeatureValueProvider(meta.geometryType, meta.srid, meta.columns);
         this.next = new ValueProviderFacade(provider, indexMap);
         for (int i = 0; i < offset && readNext(); i++); // Skip offset
     }
@@ -31,7 +31,6 @@ public class FlatgeobufFeatureStream implements FeatureStream {
     @Override
     public void close() {
         closed = true;
-        // U.closeSilent(fgb);
     }
 
     @Override

@@ -47,14 +47,17 @@ public class FlatgeobufSource implements SimpleSource {
         File file = getFile(cfg.get(p + "db"), path);
 
         int cfgSrid = Integer.parseInt(cfg.get(p + "srid.storage", "0"));
+        
+        BufferedFile f = new BufferedFileMmap(file.toPath());
+        Flatgeobuf fgb = new Flatgeobuf(f);
 
-        FlatgeobufFeatureType ft = new FlatgeobufFeatureType(file);
+        FlatgeobufFeatureType ft = new FlatgeobufFeatureType(fgb);
         ft.setName(collectionId);
-        ft.setTitle(ft.meta.name);
+        ft.setTitle(fgb.meta.name);
 
         ft.setId(getIdProperty(ft, cfg.getRequired(p + "id.mapping")));
-        ft.setGeom(toHakunaGeometryProperty(collectionId, ft.meta, srids, cfgSrid));
-        ft.setProperties(toProperties(ft.meta, ft.getId().getColumn()));
+        ft.setGeom(toHakunaGeometryProperty(collectionId, fgb.meta, srids, cfgSrid));
+        ft.setProperties(toProperties(fgb.meta, ft.getId().getColumn()));
 
         return ft;
     }
@@ -102,7 +105,7 @@ public class FlatgeobufSource implements SimpleSource {
         String name = "id";
         boolean nullable = false;
         boolean unique = true;
-        ColumnMeta column = ft.meta.columns.stream().filter(it -> it.name.equalsIgnoreCase(idMapping)).findAny().get();
+        ColumnMeta column = ft.fgb.meta.columns.stream().filter(it -> it.name.equalsIgnoreCase(idMapping)).findAny().get();
         HakunaPropertyType type = 
                 column.type == ColumnType.Int ? HakunaPropertyType.INT :
                     column.type == ColumnType.Long ? HakunaPropertyType.LONG :
