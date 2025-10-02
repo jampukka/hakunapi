@@ -1,6 +1,7 @@
 package fi.nls.hakunapi.flatgeobuf;
 
 import java.io.File;
+import java.net.URL;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
@@ -44,12 +45,18 @@ public class FlatgeobufSource implements SimpleSource {
         // Current prefix for properties
         String p = "collections." + collectionId + ".";
 
-        File file = getFile(cfg.get(p + "db"), path);
+        LargeFile largeFile;
+        String uri = cfg.get(p + "db");
+        if (uri.startsWith("http")) {
+            URL url = new URL(uri);
+            largeFile = new LargeFileHttp(url); 
+        } else {
+            File file = getFile(cfg.get(p + "db"), path);
+            largeFile = new LargeFileMmap(file.toPath());
+        }
+        Flatgeobuf fgb = new Flatgeobuf(largeFile);
 
         int cfgSrid = Integer.parseInt(cfg.get(p + "srid.storage", "0"));
-        
-        BufferedFile f = new BufferedFileMmap(file.toPath());
-        Flatgeobuf fgb = new Flatgeobuf(f);
 
         FlatgeobufFeatureType ft = new FlatgeobufFeatureType(fgb);
         ft.setName(collectionId);

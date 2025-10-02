@@ -13,6 +13,7 @@ import fi.nls.hakunapi.core.SRIDCode;
 import fi.nls.hakunapi.core.geom.HakunaGeometry;
 import fi.nls.hakunapi.core.property.HakunaPropertyType;
 import fi.nls.hakunapi.core.schemas.Link;
+import fi.nls.hakunapi.core.util.DefaultFloatingPointFormatter;
 
 public abstract class CSVFeatureWriterBase implements FeatureWriter {
 
@@ -44,7 +45,11 @@ public abstract class CSVFeatureWriterBase implements FeatureWriter {
 
     @Override
     public void init(OutputStream out, SRIDCode srid) throws Exception {
-        this.csv = new CSVWriter(out, formatter);
+        FloatingPointFormatter f = formatter;
+        if (f == null) {
+            f = srid.isDegrees() ? DefaultFloatingPointFormatter.DEFAULT_DEGREES : DefaultFloatingPointFormatter.DEFAULT_METERS;
+        }
+        this.csv = new CSVWriter(out, f);
         this.srid = srid.getSrid();
     }
 

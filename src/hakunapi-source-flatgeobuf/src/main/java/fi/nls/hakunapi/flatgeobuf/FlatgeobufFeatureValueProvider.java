@@ -40,10 +40,13 @@ public class FlatgeobufFeatureValueProvider implements ValueProvider {
         Arrays.fill(propertyOffsets, 0);
         if (f.propertiesLength() > 0) {
             propertiesBuffer = f.propertiesAsByteBuffer();
-            while (propertiesBuffer.hasRemaining()) {
-                short i = propertiesBuffer.getShort();
-                propertyOffsets[i] = propertiesBuffer.position();
-                skip(i, propertiesBuffer);
+            int limit = propertiesBuffer.limit();
+            int pos = propertiesBuffer.position();
+            while (pos < limit) {
+                short i = propertiesBuffer.getShort(pos);
+                pos += Short.BYTES;
+                propertyOffsets[i] = pos;
+                pos += byteLength(propertyTypes[i], propertiesBuffer, pos);
             }
         }
     }
@@ -174,26 +177,21 @@ public class FlatgeobufFeatureValueProvider implements ValueProvider {
         }
     }
     
-    private void skip(int i, ByteBuffer bb) {
-        switch (propertyTypes[i]) {
+    private static int byteLength(final byte columnType, final ByteBuffer bb, final int pos) {
+        switch (columnType) {
         case ColumnType.Bool:
-            bb.position(bb.position() + 1);
-            break;
+            return 1;
         case ColumnType.Int:
         case ColumnType.Float:
-            bb.position(bb.position() + 4);
-            break;
+            return 4;
         case ColumnType.Long:
         case ColumnType.Double:
-            bb.position(bb.position() + 8);
-            break;
+            return 8;
         case ColumnType.DateTime:
         case ColumnType.String:
-            int n = bb.getInt();
-            bb.position(bb.position() + n);
-            break;
+            return 4 + bb.getInt(pos);
         default:
-            throw new IllegalArgumentException(propertyTypes[i] + " not yet supported");
+            throw new IllegalArgumentException(columnType + " not yet supported");
         }
     }
 

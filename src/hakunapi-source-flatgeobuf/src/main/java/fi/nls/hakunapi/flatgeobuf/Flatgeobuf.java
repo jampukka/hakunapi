@@ -14,18 +14,20 @@ public class Flatgeobuf {
     
     public final HeaderMeta meta;
 
-    private final BufferedFile file;
+    private final LargeFile file;
+    private final long fileSize;
     private final long geometryIndexSize;
     private final long featuresOffset;
     
-    public Flatgeobuf(BufferedFile file) throws IllegalArgumentException, IOException, Exception {
+    public Flatgeobuf(LargeFile file) throws IllegalArgumentException, IOException, Exception {
         this.file = file;
+        this.fileSize = file.getSize();
         this.meta = readHeader(file);
         this.geometryIndexSize = PackedRTree.calcSize((int) this.meta.featuresCount, this.meta.indexNodeSize);
         this.featuresOffset = meta.offset + geometryIndexSize;
     }
 
-    public static HeaderMeta readHeader(BufferedFile file) throws IOException {
+    public static HeaderMeta readHeader(LargeFile file) throws IOException {
         ByteBuffer start = file.getBytes(0L, 12);
         int headerSize = start.getInt(8);
         ByteBuffer headerBytes = file.getBytes(0L, 8 + 4 + headerSize);
@@ -33,17 +35,18 @@ public class Flatgeobuf {
     }
     
     public Iterator<Feature> boundingBoxSearch(Envelope e) {
-        return boundingBoxStream(e).mapToObj(this::readFeature).iterator();
+        Feature f = new Feature();
+        return boundingBoxStream(e).mapToObj(indexOffset -> readFeature(featuresOffset + indexOffset, f)).iterator();
     }
     
-    public Feature readFeature(long offset) {
+    public Feature readFeature(long offset, Feature f) {
         int featureSize = file.getInt(offset);
         ByteBuffer featureBytes = file.getBytes(offset + 4, featureSize);
-        return Feature.getRootAsFeature(featureBytes);
+        return Feature.getRootAsFeature(featureBytes, f);
     }
     
     public LongStream boundingBoxStream(Envelope e) {
-        return FlatgeobufGeometryIndex.bboxStream(file, meta.offset, (int) meta.featuresCount, meta.indexNodeSize, e);
+        return FlatgeobufGeometryIndex.bboxStream(file, this.meta.offset, (int) meta.featuresCount, meta.indexNodeSize, e);
     }
     
     public Iterator<Feature> all() {
@@ -53,26 +56,24 @@ public class Flatgeobuf {
     public final class FgbFeatureIterator implements Iterator<Feature> {
         
         private long off;
-        private long i;
         
         private FgbFeatureIterator() {
             this.off = featuresOffset;
-            this.i = 0L;
         }
         
         @Override
         public boolean hasNext() {
-            return i < meta.featuresCount;
+            return off < fileSize;
         }
 
         @Override
         public Feature next() {
-            int size = file.getInt(off);
-            off += Integer.SIZE;
-            ByteBuffer featureBytes = file.getBytes(off, size);
+            long localOff = off;
+            int size = file.getInt(localOff);
+            localOff += Integer.BYTES;
+            ByteBuffer featureBytes = file.getBytes(localOff, size);
             Feature f = Feature.getRootAsFeature(featureBytes);
-            off += size;
-            i++;
+            off = localOff + size;
             return f;
         }
 
