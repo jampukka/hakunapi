@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -152,6 +153,19 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
 
     @Override
     public void writeProperty(String name, LocalDate value) throws Exception {
+        if (value == null) {
+            writeNullProperty(name);
+        } else {
+            openProperties();
+            if (name != null) {
+                w.writeFieldName(getProperty(name));
+            }
+            w.writeString(value.toString());
+        }
+    }
+
+    @Override
+    public void writeProperty(String name, LocalDateTime value) throws Exception {
         if (value == null) {
             writeNullProperty(name);
         } else {

@@ -8,7 +8,6 @@ import java.util.stream.LongStream;
 import org.locationtech.jts.geom.Envelope;
 import org.wololo.flatgeobuf.HeaderMeta;
 import org.wololo.flatgeobuf.PackedRTree;
-import org.wololo.flatgeobuf.generated.Feature;
 
 public class Flatgeobuf {
     
@@ -34,26 +33,23 @@ public class Flatgeobuf {
         return HeaderMeta.read(headerBytes);
     }
     
-    public Iterator<Feature> boundingBoxSearch(Envelope e) {
-        Feature f = new Feature();
-        return boundingBoxStream(e).mapToObj(indexOffset -> readFeature(featuresOffset + indexOffset, f)).iterator();
+    public Iterator<ByteBuffer> boundingBoxSearch(Envelope e) {
+        return boundingBoxStream(e).mapToObj(indexOffset -> readFeatureBytes(featuresOffset + indexOffset)).iterator();
     }
     
-    public Feature readFeature(long offset, Feature f) {
-        int featureSize = file.getInt(offset);
-        ByteBuffer featureBytes = file.getBytes(offset + 4, featureSize);
-        return Feature.getRootAsFeature(featureBytes, f);
+    private ByteBuffer readFeatureBytes(long offset) {
+        return file.getBytes(offset + 4, file.getInt(offset));
     }
     
     public LongStream boundingBoxStream(Envelope e) {
         return FlatgeobufGeometryIndex.bboxStream(file, this.meta.offset, (int) meta.featuresCount, meta.indexNodeSize, e);
     }
     
-    public Iterator<Feature> all() {
+    public Iterator<ByteBuffer> all() {
         return new FgbFeatureIterator();
     }
     
-    public final class FgbFeatureIterator implements Iterator<Feature> {
+    public final class FgbFeatureIterator implements Iterator<ByteBuffer> {
         
         private long off;
         
@@ -67,14 +63,13 @@ public class Flatgeobuf {
         }
 
         @Override
-        public Feature next() {
+        public ByteBuffer next() {
             long localOff = off;
             int size = file.getInt(localOff);
             localOff += Integer.BYTES;
             ByteBuffer featureBytes = file.getBytes(localOff, size);
-            Feature f = Feature.getRootAsFeature(featureBytes);
             off = localOff + size;
-            return f;
+            return featureBytes;
         }
 
     }

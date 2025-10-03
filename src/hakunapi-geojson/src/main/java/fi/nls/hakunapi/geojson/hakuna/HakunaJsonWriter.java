@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 import com.fasterxml.jackson.core.io.NumberOutput;
@@ -416,6 +417,34 @@ public class HakunaJsonWriter implements AutoCloseable, Flushable {
             }
             buf[pos++] = QUOTE;
             pos = LocalDateOutput.outputLocalDate(date, buf, pos);
+            buf[pos++] = QUOTE;
+            comma = true;
+            state >>>= 1; // STATE_ARRAY => STATE_ARRAY, STATE_OBJ_VALUE => STATE_OBJ_KEY
+            break;
+        default:
+            throw new IllegalStateException();
+        }
+    }
+
+    public void writeLocalDateTime(LocalDateTime dateTime) throws IOException {
+        switch (state) {
+        case STATE_ARRAY:
+            if (pos + 1 >= BUF_LEN) {
+                flush();
+            }
+            if (comma) {
+                buf[pos++] = COMMA;
+            }
+        case STATE_OBJ_VALUE:
+            // quotes, T, Z
+            if (pos + 4 + LocalDateOutput.MAX_BYTE_LEN + LocalDateOutput.MAX_BYTE_LEN_TIME >= BUF_LEN) {
+                flush();
+            }
+            buf[pos++] = QUOTE;
+            pos = LocalDateOutput.outputLocalDate(dateTime.toLocalDate(), buf, pos);
+            buf[pos++] = 'T';
+            pos = LocalDateOutput.outputLocalTime(dateTime.toLocalTime(), buf, pos);
+            buf[pos++] = 'Z';
             buf[pos++] = QUOTE;
             comma = true;
             state >>>= 1; // STATE_ARRAY => STATE_ARRAY, STATE_OBJ_VALUE => STATE_OBJ_KEY

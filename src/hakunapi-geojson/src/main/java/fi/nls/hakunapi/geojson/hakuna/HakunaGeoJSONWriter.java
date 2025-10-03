@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -218,6 +219,17 @@ public abstract class HakunaGeoJSONWriter implements FeatureWriter {
                 json.writeFieldName(getProperty(name));
             }
             json.writeLocalDate(value);
+        }
+    }
+
+    @Override
+    public void writeProperty(String name, LocalDateTime value) throws Exception {
+        if (value != null) {
+            openProperties();
+            if (name != null) {
+                json.writeFieldName(getProperty(name));
+            }
+            json.writeLocalDateTime(value);
         }
     }
 

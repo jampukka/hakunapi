@@ -3,6 +3,7 @@ package fi.nls.hakunapi.source.gpkg;
 import java.io.OutputStream;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -97,6 +98,11 @@ public class InMemoryFeatureWriter implements FeatureCollectionWriter {
 
     @Override
     public void writeProperty(String name, LocalDate value) throws Exception {
+        current.add(value);
+    }
+
+    @Override
+    public void writeProperty(String name, LocalDateTime value) throws Exception {
         current.add(value);
     }
 

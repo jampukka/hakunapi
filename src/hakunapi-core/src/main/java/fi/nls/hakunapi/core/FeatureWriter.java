@@ -3,6 +3,7 @@ package fi.nls.hakunapi.core;
 import java.io.OutputStream;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +27,7 @@ public interface FeatureWriter extends AutoCloseable {
     public void writeProperty(String name, HakunaGeometry geometry) throws Exception;
     public void writeProperty(String name, String value) throws Exception;
     public void writeProperty(String name, LocalDate value) throws Exception;
+    public void writeProperty(String name, LocalDateTime value) throws Exception;
     public void writeProperty(String name, Instant value) throws Exception;
     public void writeProperty(String name, boolean value) throws Exception;
     public void writeProperty(String name, int value) throws Exception;

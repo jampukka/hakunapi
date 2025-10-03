@@ -5,6 +5,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -178,6 +179,11 @@ public class GPKGFeatureCollectionWriter extends GPKGFeatureWriter implements Fe
 
     @Override
     public void writeProperty(String name, LocalDate value) throws Exception {
+        insert.setString(nameToIndex.get(name), value.toString());
+    }
+
+    @Override
+    public void writeProperty(String name, LocalDateTime value) throws Exception {
         insert.setString(nameToIndex.get(name), value.toString());
     }
 

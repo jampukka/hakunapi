@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import fi.nls.hakunapi.core.FeatureWriter;
@@ -131,6 +132,15 @@ public abstract class HTMLFeatureWriterBase implements FeatureWriter {
 
     @Override
     public void writeProperty(String name, LocalDate value) throws Exception {
+        if (value == null) {
+            writeNullProperty(name);
+        } else {
+            writeProperty(name, value.toString());
+        }
+    }
+
+    @Override
+    public void writeProperty(String name, LocalDateTime value) throws Exception {
         if (value == null) {
             writeNullProperty(name);
         } else {

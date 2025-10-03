@@ -13,33 +13,66 @@ import org.wololo.flatgeobuf.ColumnMeta;
 import org.wololo.flatgeobuf.generated.ColumnType;
 import org.wololo.flatgeobuf.generated.Feature;
 import org.wololo.flatgeobuf.generated.Geometry;
+import org.wololo.flatgeobuf.generated.GeometryType;
 
 import fi.nls.hakunapi.core.ValueProvider;
 import fi.nls.hakunapi.core.geom.HakunaGeometry;
+import fi.nls.hakunapi.flatgeobuf.geometry.HakunaPolygonGeometryFgb;
 
 public class FlatgeobufFeatureValueProvider implements ValueProvider {
 
+    private final Feature f;
     private final Geometry g;
-    private final HakunaGeometryFgb fg;
-    private ByteBuffer propertiesBuffer;
+    private final HakunaGeometry fg;
     private final byte[] propertyTypes;
     private final int[] propertyOffsets;
+    private ByteBuffer propertiesBuffer;
 
     protected FlatgeobufFeatureValueProvider(int geometryType, int srid, List<ColumnMeta> columns) {
         this.propertyTypes = new byte[columns.size()];
         for (int i = 0; i < columns.size(); i++) {
             propertyTypes[i] = columns.get(i).type;
         }
+        this.f = new Feature();
         this.g = new Geometry();
-        this.fg = new HakunaGeometryFgb(geometryType, srid, g);
+        this.fg = initHakunapiGeometry(geometryType, srid, g);
         this.propertyOffsets = new int[columns.size()];
     }
+    
+    private static HakunaGeometry initHakunapiGeometry(int geometryType, int srid, Geometry g) {
+        switch (geometryType) {
+        case GeometryType.Polygon:
+            return new HakunaPolygonGeometryFgb(srid, g);
+        /*
+        case GeometryType.Point:
+            writePoint(writer, true);
+            break;
+        case GeometryType.LineString:
+            writeLineString(writer, true);
+            break;
+        case GeometryType.MultiPoint:
+            writeMultiPoint(g, srid, writer, true);
+            break;
+        case GeometryType.MultiLineString:
+            writeMultiLineString(g, srid, writer, true);
+            break;
+        case GeometryType.MultiPolygon:
+            writeMultiPolygon(g, srid, writer, true);
+            break;
+            */
+        default:
+            throw new RuntimeException("Unknown geometry type");
+        }
+    }
 
-    protected void setFeature(Feature f) {
+    protected void setFeature(ByteBuffer bb) {
+        // Feature.getRootAsFeature(bb);
+        f.__init(bb.getInt(bb.position()) + bb.position(), bb);
         f.geometry(g);
+
         Arrays.fill(propertyOffsets, 0);
-        if (f.propertiesLength() > 0) {
-            propertiesBuffer = f.propertiesAsByteBuffer();
+        propertiesBuffer = f.propertiesAsByteBuffer();
+        if (propertiesBuffer != null) {
             int limit = propertiesBuffer.limit();
             int pos = propertiesBuffer.position();
             while (pos < limit) {
@@ -94,8 +127,7 @@ public class FlatgeobufFeatureValueProvider implements ValueProvider {
         }
         int n = propertiesBuffer.getInt(off);
         byte[] buf = new byte[n];
-        propertiesBuffer.position(off + 4);
-        propertiesBuffer.get(buf, 0, n);
+        propertiesBuffer.get(off + 4, buf, 0, n);
         return new String(buf, 0, n, StandardCharsets.UTF_8);
     }
 

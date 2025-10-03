@@ -3,6 +3,7 @@ package fi.nls.hakunapi.gpkg;
 import java.io.File;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import fi.nls.hakunapi.core.FeatureType;
@@ -94,6 +95,12 @@ public class GPKGSingleFeatureWriter extends GPKGFeatureWriter implements Single
 
     @Override
     public void writeNullProperty(String name) throws Exception {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public void writeProperty(String name, LocalDateTime value) throws Exception {
         // TODO Auto-generated method stub
         
     }

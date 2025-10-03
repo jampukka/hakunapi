@@ -1,6 +1,7 @@
 package fi.nls.hakunapi.core.util;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 import com.fasterxml.jackson.core.io.NumberOutput;
 
@@ -9,38 +10,41 @@ public class LocalDateOutput {
     // year (10) + month (2) + day (2) + separators (2)
     // 10 characters for year allows for a range of [-999999999, Integer.MAX_VALUE]
     public static final int MAX_BYTE_LEN = 16;
+    // hour (2) + minutes (2) + seconds (2) + nanos (9) + separator (3)
+    public static final int MAX_BYTE_LEN_TIME = 18;
     
     public static int outputLocalDate(LocalDate value, byte[] buf, int pos) {
-        int y = value.getYear();
-        int m = value.getMonthValue();
-        int d = value.getDayOfMonth();
+        pos = NumberOutput.outputInt(value.getYear(), buf, pos);
+        buf[pos++] = '-';
+        pos = outputTwoDigitInt(value.getMonthValue(), buf, pos);
+        buf[pos++] = '-';
+        return outputTwoDigitInt(value.getDayOfMonth(), buf, pos);
+    }
 
-        pos = NumberOutput.outputInt(y, buf, pos);
-    
-        buf[pos++] = '-';
-        if (m < 10) {
-            buf[pos++] = '0';
-            buf[pos++] = (byte) ('0' + m);
-        } else {
-            buf[pos++] = (byte) '1';
-            buf[pos++] = (byte) ('0' - 10 + m);
+    public static int outputLocalTime(LocalTime value, byte[] buf, int pos) {
+        pos = outputTwoDigitInt(value.getHour(), buf, pos);
+        buf[pos++] = ':';
+        pos = outputTwoDigitInt(value.getMinute(), buf, pos);
+        buf[pos++] = ':';
+        pos = outputTwoDigitInt(value.getSecond(), buf, pos);
+
+        int nanos = value.getNano();
+        if (nanos > 0) {
+            int end = NumberOutput.outputInt(nanos + 1_000_000_000, buf, pos);
+            buf[pos] = '.';
+            pos = end;
         }
+        return pos;
+    }
     
-        buf[pos++] = '-';
-        if (d < 10) {
-            buf[pos++] = '0';
-            buf[pos++] = (byte) ('0' + d);
-        } else if (d < 20) {
-            buf[pos++] = (byte) '1';
-            buf[pos++] = (byte) ('0' - 10 + d);
-        } else if (d < 30) {
-            buf[pos++] = (byte) '2';
-            buf[pos++] = (byte) ('0' - 20 + d);
-        } else {
-            buf[pos++] = (byte) '3';
-            buf[pos++] = (byte) ('0' - 30 + d);
+    private static int outputTwoDigitInt(int v, byte[] buf, int pos) {
+        int tens = '0';
+        while (v >= 10) {
+            tens++;
+            v -= 10;
         }
-        
+        buf[pos++] = (byte) tens;
+        buf[pos++] = (byte) ('0' + v);
         return pos;
     }
 

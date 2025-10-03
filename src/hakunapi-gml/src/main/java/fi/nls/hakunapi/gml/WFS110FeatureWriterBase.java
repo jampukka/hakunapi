@@ -3,6 +3,7 @@ package fi.nls.hakunapi.gml;
 import java.io.OutputStream;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
@@ -138,6 +139,14 @@ public abstract class WFS110FeatureWriterBase implements FeatureWriter {
 
     @Override
     public void writeProperty(String name, LocalDate value) throws Exception {
+        if (value == null) {
+            return;
+        }
+        writeProperty(name, value.toString());
+    }
+
+    @Override
+    public void writeProperty(String name, LocalDateTime value) throws Exception {
         if (value == null) {
             return;
         }

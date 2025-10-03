@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import com.fasterxml.jackson.core.io.NumberOutput;
 
@@ -42,6 +43,7 @@ public class CSVWriter implements AutoCloseable, Flushable {
 
     private final OutputStream out;
     private final FloatingPointFormatter formatter;
+    private final WKT wkt;
 
     private final byte[] buf;
     private int pos;
@@ -52,6 +54,7 @@ public class CSVWriter implements AutoCloseable, Flushable {
     public CSVWriter(OutputStream out, FloatingPointFormatter formatter) {
         this.out = out;
         this.formatter = formatter;
+        this.wkt = new WKT(); 
         this.buf = new byte[BUF_LEN];
     }
 
@@ -145,7 +148,7 @@ public class CSVWriter implements AutoCloseable, Flushable {
     }
 
     public void writeGeometry(HakunaGeometry geometry) throws Exception {
-        geometry.write(new WKT());
+        geometry.write(wkt);
     }
 
     public void writeString(String s) throws IOException {
@@ -262,7 +265,7 @@ public class CSVWriter implements AutoCloseable, Flushable {
     
     public void writeLocalDate(LocalDate value) throws IOException {
         // quotes and last char (3)
-        if (pos + 5 + LocalDateOutput.MAX_BYTE_LEN >= BUF_LEN) {
+        if (pos + 3 + LocalDateOutput.MAX_BYTE_LEN >= BUF_LEN) {
             flush();
         }
 
@@ -271,7 +274,22 @@ public class CSVWriter implements AutoCloseable, Flushable {
         buf[pos++] = QUOTE;
         writeCommaOrLineFeed();
     }
-    
+
+    public void writeLocalDateTime(LocalDateTime value) throws IOException {
+        // quotes, T, Z and last char (5)
+        if (pos + 5 + LocalDateOutput.MAX_BYTE_LEN + LocalDateOutput.MAX_BYTE_LEN_TIME >= BUF_LEN) {
+            flush();
+        }
+
+        buf[pos++] = QUOTE;
+        pos = LocalDateOutput.outputLocalDate(value.toLocalDate(), buf, pos);
+        buf[pos++] = 'T';
+        pos = LocalDateOutput.outputLocalTime(value.toLocalTime(), buf, pos);
+        buf[pos++] = 'Z';
+        buf[pos++] = QUOTE;
+        writeCommaOrLineFeed();
+    }
+
     public void writeASCIIString(CharSequence s) throws IOException {
         int len = s.length();
         if (pos + len + 3 >= BUF_LEN) {
@@ -322,16 +340,18 @@ public class CSVWriter implements AutoCloseable, Flushable {
         private boolean isPoint;
         private boolean comma;
         private int estimatedNumBytesPerCoordinate; 
-
+        
         @Override
         public void init(HakunaGeometryType type, int srid, int dimension) throws Exception {
-            writeASCII(QUOTE);
-            
+            this.isPoint = false;
+            this.comma = false;
             this.estimatedNumBytesPerCoordinate = 2 + dimension * (22 + formatter.maxDecimalsOrdinate()); 
 
+            writeASCII(QUOTE);
             switch (type) {
             case POINT:                
                 writeASCII(POINT);
+                this.isPoint = true;
                 break;
             case LINESTRING:
                 writeASCII(LINESTRING);

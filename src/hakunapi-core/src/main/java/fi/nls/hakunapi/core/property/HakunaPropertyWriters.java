@@ -110,7 +110,8 @@ public final class HakunaPropertyWriters {
                 if (vp.isNull(i)) {
                     writer.writeNullProperty(name);
                 } else {
-                    writer.writeProperty(name, vp.getLocalDateTime(i).toInstant(ZoneOffset.UTC));
+                    // writer.writeProperty(name, vp.getLocalDateTime(i).toInstant(ZoneOffset.UTC));
+                    writer.writeProperty(name, vp.getLocalDateTime(i));
                 }
             };
         case TIMESTAMPTZ:

@@ -1,18 +1,18 @@
 package fi.nls.hakunapi.flatgeobuf;
 
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Predicate;
 
 import org.wololo.flatgeobuf.HeaderMeta;
-import org.wololo.flatgeobuf.generated.Feature;
 
 import fi.nls.hakunapi.core.FeatureStream;
 import fi.nls.hakunapi.core.ValueProvider;
 
 public class FlatgeobufFeatureStream implements FeatureStream {
 
-    private final Iterator<Feature> featureIterator;
+    private final Iterator<ByteBuffer> featureIterator;
     private final Predicate<ValueProvider> filterFn;
     private final FlatgeobufFeatureValueProvider provider;
     private final ValueProviderFacade next;
@@ -20,7 +20,7 @@ public class FlatgeobufFeatureStream implements FeatureStream {
     private boolean closed;
     private boolean buffered;
 
-    public FlatgeobufFeatureStream(HeaderMeta meta, Iterator<Feature> featureIterator, int offset, Predicate<ValueProvider> filterFn, int[] indexMap) {
+    public FlatgeobufFeatureStream(HeaderMeta meta, Iterator<ByteBuffer> featureIterator, int offset, Predicate<ValueProvider> filterFn, int[] indexMap) {
         this.featureIterator = featureIterator;
         this.filterFn = filterFn;
         this.provider = new FlatgeobufFeatureValueProvider(meta.geometryType, meta.srid, meta.columns);

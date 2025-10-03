@@ -3,6 +3,7 @@ package fi.nls.hakunapi.csv;
 import java.io.OutputStream;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
 import java.util.List;
@@ -35,8 +36,6 @@ public abstract class CSVFeatureWriterBase implements FeatureWriter {
 
     protected CSVWriter csv;
     protected int srid;
-    protected int array;
-    protected int object;
     protected StringBuilder strBuf = new StringBuilder(32);
 
     public void setFormatter(FloatingPointFormatter formatter) {
@@ -85,12 +84,10 @@ public abstract class CSVFeatureWriterBase implements FeatureWriter {
 
     @Override
     public void writeGeometry(String name, HakunaGeometry geometry) throws Exception {
-        if (object == 0 && array == 0) {
-            if (geometry == null) {
-                writeNullProperty(name);
-            } else {
-                csv.writeGeometry(geometry);
-            }
+        if (geometry == null) {
+            writeNullProperty(name);
+        } else {
+            csv.writeGeometry(geometry);
         }
     }
 
@@ -100,6 +97,15 @@ public abstract class CSVFeatureWriterBase implements FeatureWriter {
             writeNullProperty(name);
         } else {
             csv.writeLocalDate(value);
+        }
+    }
+
+    @Override
+    public void writeProperty(String name, LocalDateTime value) throws Exception {
+        if (value == null) {
+            writeNullProperty(name);
+        } else {
+            csv.writeLocalDateTime(value);
         }
     }
 
@@ -121,75 +127,61 @@ public abstract class CSVFeatureWriterBase implements FeatureWriter {
 
     @Override
     public void writeProperty(String name, String value) throws Exception {
-        if (object == 0 && array == 0) {
-            if (value == null) {
-                csv.writeNull();
-            } else {
-                csv.writeString(value);
-            }
+        if (value == null) {
+            csv.writeNull();
+        } else {
+            csv.writeString(value);
         }
     }
 
     @Override
     public void writeProperty(String name, boolean value) throws Exception {
-        if (object == 0 && array == 0) {
-            csv.writeBoolean(value);
-        }
+        csv.writeBoolean(value);
     }
 
     @Override
     public void writeProperty(String name, int value) throws Exception {
-        if (object == 0 && array == 0) {
-            csv.writeNumber(value);
-        }
+        csv.writeNumber(value);
     }
 
     @Override
     public void writeProperty(String name, long value) throws Exception {
-        if (object == 0 && array == 0) {
-            csv.writeNumber(value);
-        }
+        csv.writeNumber(value);
     }
 
     @Override
     public void writeProperty(String name, float value) throws Exception {
-        if (object == 0 && array == 0) {
-            csv.writeNumber(value);
-        }
+        csv.writeNumber(value);
     }
 
     @Override
     public void writeProperty(String name, double value) throws Exception {
-        if (object == 0 && array == 0) {
-            csv.writeNumber(value);
-        }
+        csv.writeNumber(value);
     }
 
     @Override
     public void writeNullProperty(String name) throws Exception {
-        if (object == 0 && array == 0) {
-            csv.writeNull();
-        }
+        csv.writeNull();
     }
 
     @Override
     public void writeStartObject(String name) throws Exception {
-        object++;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void writeCloseObject() throws Exception {
-        object--;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void writeStartArray(String name) throws Exception {
-        array++;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void writeCloseArray() throws Exception {
-        array--;
+        throw new UnsupportedOperationException();
     }
 
 }
