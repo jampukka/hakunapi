@@ -3,6 +3,7 @@ package fi.nls.hakunapi.flatgeobuf;
 import java.io.File;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -52,7 +53,12 @@ public class FlatgeobufSource implements SimpleSource {
             largeFile = new LargeFileHttp(url); 
         } else {
             File file = getFile(cfg.get(p + "db"), path);
-            largeFile = new LargeFileMmap(file.toPath());
+            if (file.length() > Integer.MAX_VALUE) {
+                largeFile = new LargeFileMmap(file.toPath());
+            } else {
+                largeFile = new SmallFileMmap(file.toPath());
+            }
+            
         }
         Flatgeobuf fgb = new Flatgeobuf(largeFile);
 
@@ -80,13 +86,14 @@ public class FlatgeobufSource implements SimpleSource {
     private HakunaProperty toProperty(ColumnMeta column) {
         String name = column.name;
         String col = column.name;
-        boolean nullable = column.nullable;
+        String[] nonNullableColumns = { "mtk_id", "sijaintitarkkuus", "alkupvm", "aineistolahde", "kohdeluokka", "korkeustarkkuus", "kayttotarkoitus", "kerrosluku", "pohjankorkeus" };
+        boolean nullable = Arrays.stream(nonNullableColumns).noneMatch(name::equals) && column.nullable;
         boolean unique = column.unique;
         switch (column.type) {
         case ColumnType.Bool:
             return new HakunaPropertyBoolean(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.BOOLEAN));
         case ColumnType.Int:
-            return new HakunaPropertyInt(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.INT));
+            return new HakunaPropertyInt(name, col, col, nullable, unique, HakunaPropertyWriters.getPrimitivePropertyWriter(name, HakunaPropertyType.INT, nullable));
         case ColumnType.Long:
             return new HakunaPropertyLong(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.LONG));
         case ColumnType.Float:
@@ -94,7 +101,7 @@ public class FlatgeobufSource implements SimpleSource {
         case ColumnType.Double:
             return new HakunaPropertyDouble(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.DOUBLE));
         case ColumnType.DateTime:
-            return new HakunaPropertyTimestamp(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.TIMESTAMP));
+            return new HakunaPropertyTimestamp(name, col, col, nullable, unique, HakunaPropertyWriters.getPrimitivePropertyWriter(name, HakunaPropertyType.TIMESTAMP, nullable));
         case ColumnType.String:
             return new HakunaPropertyString(name, col, col, nullable, unique, HakunaPropertyWriters.getSimplePropertyWriter(name, HakunaPropertyType.STRING));
         default:

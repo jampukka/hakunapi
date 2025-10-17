@@ -26,4 +26,11 @@ public interface ValueProvider {
     public Object getObject(int i);
     public default byte[] getJSON(int i)  { return null; }
     
+    public default int getPrimitiveInt(int i) {
+        return getInt(i);
+    } 
+
+    public default int getPrimitiveLocalDateTimeDate(int i) { return -1; }
+    public default long getPrimitiveLocalDateTimeTime(int i) { return -1L; }
+
 }

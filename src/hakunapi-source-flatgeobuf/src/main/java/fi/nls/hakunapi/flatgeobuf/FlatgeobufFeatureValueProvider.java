@@ -17,6 +17,8 @@ import org.wololo.flatgeobuf.generated.GeometryType;
 
 import fi.nls.hakunapi.core.ValueProvider;
 import fi.nls.hakunapi.core.geom.HakunaGeometry;
+import fi.nls.hakunapi.core.util.PackedLocalDate;
+import fi.nls.hakunapi.core.util.PackedLocalTime;
 import fi.nls.hakunapi.flatgeobuf.geometry.HakunaPolygonGeometryFgb;
 
 public class FlatgeobufFeatureValueProvider implements ValueProvider {
@@ -26,7 +28,8 @@ public class FlatgeobufFeatureValueProvider implements ValueProvider {
     private final HakunaGeometry fg;
     private final byte[] propertyTypes;
     private final int[] propertyOffsets;
-    private ByteBuffer propertiesBuffer;
+    
+    private ByteBuffer bb; 
 
     protected FlatgeobufFeatureValueProvider(int geometryType, int srid, List<ColumnMeta> columns) {
         this.propertyTypes = new byte[columns.size()];
@@ -65,22 +68,29 @@ public class FlatgeobufFeatureValueProvider implements ValueProvider {
         }
     }
 
-    protected void setFeature(ByteBuffer bb) {
-        // Feature.getRootAsFeature(bb);
-        f.__init(bb.getInt(bb.position()) + bb.position(), bb);
-        f.geometry(g);
+    protected void setFeature(ByteBuffer bb, int position) {
+        this.bb = bb;
 
+        int bb_pos = position + bb.getInt(position);
+        f.__init(bb_pos, bb);
+        
+        int vtable_start = bb_pos - bb.getInt(bb_pos);
+
+        f.geometry(g);
+        
         Arrays.fill(propertyOffsets, 0);
-        propertiesBuffer = f.propertiesAsByteBuffer();
-        if (propertiesBuffer != null) {
-            int limit = propertiesBuffer.limit();
-            int pos = propertiesBuffer.position();
-            while (pos < limit) {
-                short i = propertiesBuffer.getShort(pos);
-                pos += Short.BYTES;
-                propertyOffsets[i] = pos;
-                pos += byteLength(propertyTypes[i], propertiesBuffer, pos);
-            }
+        int op = bb.getShort(vtable_start + 6);
+        if (op == 0) return;
+        op += bb_pos;
+        int propertiesPtr = op + bb.getInt(op);
+        int propertiesEnd = op + bb.getInt(propertiesPtr) + 4;
+        propertiesPtr += 4;
+
+        while (propertiesPtr < propertiesEnd) {
+            short i = bb.getShort(propertiesPtr);
+            propertiesPtr += Short.BYTES;
+            propertyOffsets[i] = propertiesPtr;
+            propertiesPtr += byteLength(propertyTypes[i], bb, propertiesPtr);
         }
     }
 
@@ -96,27 +106,67 @@ public class FlatgeobufFeatureValueProvider implements ValueProvider {
 
     @Override
     public Boolean getBoolean(int i) {
-        return propertiesBuffer.get(propertyOffsets[i - 1]) > 0;
+        return bb.get(propertyOffsets[i - 1]) > 0;
     }
 
     @Override
     public Integer getInt(int i) {
-        return propertiesBuffer.getInt(propertyOffsets[i - 1]);
+        return bb.getInt(propertyOffsets[i - 1]);
     }
 
     @Override
     public Long getLong(int i) {
-        return propertiesBuffer.getLong(propertyOffsets[i - 1]);
+        return bb.getLong(propertyOffsets[i - 1]);
     }
 
     @Override
     public Float getFloat(int i) {
-        return propertiesBuffer.getFloat(propertyOffsets[i - 1]);
+        return bb.getFloat(propertyOffsets[i - 1]);
     }
 
     @Override
     public Double getDouble(int i) {
-        return propertiesBuffer.getDouble(propertyOffsets[i - 1]);
+        return bb.getDouble(propertyOffsets[i - 1]);
+    }
+    
+    @Override
+    public int getPrimitiveInt(int i) {
+        return bb.getInt(propertyOffsets[i - 1]);
+    }
+    
+    @Override
+    public int getPrimitiveLocalDateTimeDate(int i) {
+        int off = propertyOffsets[i - 1];
+        if (off == 0) {
+            return 0;
+        }
+        off += 4;
+        int yy = (bb.get(off +  0) - '0') * 1000 + (bb.get(off +  1) - '0') * 100 + (bb.get(off + 2) - '0') * 10 + (bb.get(off + 3) - '0');
+        int mo = (bb.get(off +  5) - '0') *   10 + (bb.get(off +  6) - '0');
+        int dd = (bb.get(off +  8) - '0') *   10 + (bb.get(off +  9) - '0');
+        return PackedLocalDate.of(yy, mo, dd);
+    }
+    
+    @Override
+    public long getPrimitiveLocalDateTimeTime(int i) {
+        int off = propertyOffsets[i - 1];
+        if (off == 0) {
+            return 0L;
+        }
+        int n = bb.getInt(off);
+        off += 4;
+        int hh = (bb.get(off + 11) - '0') *   10 + (bb.get(off + 12) - '0');
+        int mi = (bb.get(off + 14) - '0') *   10 + (bb.get(off + 15) - '0');
+        int ss = (bb.get(off + 17) - '0') *   10 + (bb.get(off + 18) - '0');
+        int ns = 0;
+        int j = 19;
+        if (bb.get(off + j) == '.') {
+            j++;
+            for (; j < n; j++) {
+                ns = ns * 10 + (bb.get(off + j) - '0');
+            }
+        }
+        return PackedLocalTime.of(hh, mi, ss, ns);
     }
 
     @Override
@@ -125,9 +175,9 @@ public class FlatgeobufFeatureValueProvider implements ValueProvider {
         if (off == 0) {
             return null;
         }
-        int n = propertiesBuffer.getInt(off);
+        int n = bb.getInt(off);
         byte[] buf = new byte[n];
-        propertiesBuffer.get(off + 4, buf, 0, n);
+        bb.get(off + 4, buf, 0, n);
         return new String(buf, 0, n, StandardCharsets.UTF_8);
     }
 
@@ -142,8 +192,8 @@ public class FlatgeobufFeatureValueProvider implements ValueProvider {
         if (off == 0) {
             return null;
         }
-        int n = propertiesBuffer.getInt(off);
-        return parseLocalDateTime(propertiesBuffer, n, off + 4);
+        int n = bb.getInt(off);
+        return parseLocalDateTime(bb, n, off + 4);
     }
 
     private static LocalDateTime parseLocalDateTime(ByteBuffer bb, int n, int off) {
@@ -209,7 +259,7 @@ public class FlatgeobufFeatureValueProvider implements ValueProvider {
         }
     }
     
-    private static int byteLength(final byte columnType, final ByteBuffer bb, final int pos) {
+    private static int byteLength(final byte columnType, final ByteBuffer bb, int pos) {
         switch (columnType) {
         case ColumnType.Bool:
             return 1;

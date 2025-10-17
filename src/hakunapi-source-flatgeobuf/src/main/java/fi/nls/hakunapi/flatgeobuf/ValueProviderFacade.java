@@ -77,6 +77,21 @@ public class ValueProviderFacade implements ValueProvider {
     public HakunaGeometry getHakunaGeometry(int i) {
         return provider.getHakunaGeometry(map[i]);
     }
+    
+    @Override
+    public int getPrimitiveInt(int i) {
+        return provider.getPrimitiveInt(map[i]);
+    }
+    
+    @Override
+    public int getPrimitiveLocalDateTimeDate(int i) {
+        return provider.getPrimitiveLocalDateTimeDate(map[i]);
+    }
+    
+    @Override
+    public long getPrimitiveLocalDateTimeTime(int i) {
+        return provider.getPrimitiveLocalDateTimeTime(map[i]);
+    }
 
     @Override
     public Object[] getArray(int i) {

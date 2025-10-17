@@ -31,6 +31,7 @@ public class LargeFileMmap implements LargeFile {
         mmaps[i] = fc.map(MapMode.READ_ONLY, i * PAGE_SIZE, lastPageSize).order(ByteOrder.LITTLE_ENDIAN);
     }
 
+    /*
     private static final int getPageIndex(final long offset) {
         return (int) (offset / PAGE_SIZE);
     }
@@ -38,40 +39,43 @@ public class LargeFileMmap implements LargeFile {
     private static final int getPageOffset(final long offset) {
         return (int) (offset % PAGE_SIZE);
     }
+    */
 
     @Override
-    public ByteBuffer getBytes(long offset, int len) {
-        int p1 = getPageIndex(offset);
-        int p2 = getPageIndex(offset + len);
-        int off1 = getPageOffset(offset);
+    public ByteBuffer getBytes(long offset, int len, MutableInt posOut) {
+        int p1 = (int) (offset >>> 31);
+        int p2 = (int) (offset + len >>> 31);
+        int off = (int) (offset & 0x7FFFFFFF);
 
         if (p1 == p2) {
-            return mmaps[p1].duplicate().position(off1).order(ByteOrder.LITTLE_ENDIAN);
+            posOut.v = off;
+            return mmaps[p1];
         }
 
         ByteBuffer bb = ByteBuffer.allocate(len).order(ByteOrder.LITTLE_ENDIAN);
         byte[] arr = bb.array();
 
-        int n = PAGE_SIZE - off1;
-        mmaps[p1].duplicate().position(off1).get(arr, 0, n);
-        mmaps[p2].duplicate().get(arr, n, len - n);
+        int n = PAGE_SIZE - off;
+        mmaps[p1].get(off, arr, 0, n);
+        mmaps[p2].get(0, arr, n, len - n);
+        posOut.v = 0;
 
         return bb;
     }
-
+    
     @Override
     public int getInt(long offset) {
-        return mmaps[getPageIndex(offset)].getInt(getPageOffset(offset));
+        return mmaps[(int) (offset >>> 31)].getInt((int) (offset & 0x7FFFFFFF));
     }
 
     @Override
     public long getLong(long offset) {
-        return mmaps[getPageIndex(offset)].getLong(getPageOffset(offset));
+        return mmaps[(int) (offset >>> 31)].getLong((int) (offset & 0x7FFFFFFF));
     }
 
     @Override
     public double getDouble(long offset) {
-        return mmaps[getPageIndex(offset)].getDouble(getPageOffset(offset));
+        return mmaps[(int) (offset >>> 31)].getDouble((int) (offset & 0x7FFFFFFF));
     }
 
     @Override

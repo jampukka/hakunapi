@@ -14,21 +14,28 @@ public class LocalDateOutput {
     public static final int MAX_BYTE_LEN_TIME = 18;
     
     public static int outputLocalDate(LocalDate value, byte[] buf, int pos) {
-        pos = NumberOutput.outputInt(value.getYear(), buf, pos);
+        return outputLocalDate(value.getYear(), value.getMonthValue(), value.getDayOfMonth(), buf, pos);
+    }
+    
+    public static int outputLocalDate(int year, int month, int day, byte[] buf, int pos) {
+        pos = NumberOutput.outputInt(year, buf, pos);
         buf[pos++] = '-';
-        pos = outputTwoDigitInt(value.getMonthValue(), buf, pos);
+        pos = outputTwoDigitInt(month, buf, pos);
         buf[pos++] = '-';
-        return outputTwoDigitInt(value.getDayOfMonth(), buf, pos);
+        return outputTwoDigitInt(day, buf, pos);
+    }
+    
+    public static int outputLocalTime(LocalTime value, byte[] buf, int pos) {
+        return outputLocalTime(value.getHour(), value.getMinute(), value.getSecond(), value.getNano(), buf, pos);
     }
 
-    public static int outputLocalTime(LocalTime value, byte[] buf, int pos) {
-        pos = outputTwoDigitInt(value.getHour(), buf, pos);
+    public static int outputLocalTime(int hours, int minutes, int seconds, int nanos, byte[] buf, int pos) {
+        pos = outputTwoDigitInt(hours, buf, pos);
         buf[pos++] = ':';
-        pos = outputTwoDigitInt(value.getMinute(), buf, pos);
+        pos = outputTwoDigitInt(minutes, buf, pos);
         buf[pos++] = ':';
-        pos = outputTwoDigitInt(value.getSecond(), buf, pos);
+        pos = outputTwoDigitInt(seconds, buf, pos);
 
-        int nanos = value.getNano();
         if (nanos > 0) {
             int end = NumberOutput.outputInt(nanos + 1_000_000_000, buf, pos);
             buf[pos] = '.';

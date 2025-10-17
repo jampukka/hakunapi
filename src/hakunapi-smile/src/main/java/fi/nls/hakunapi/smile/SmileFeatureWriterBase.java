@@ -185,7 +185,7 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
             openProperties();
             if (name != null) {
                 w.writeFieldName(getProperty(name));
-            }
+            }            
             w.writeString(value.toString());
         }
     }

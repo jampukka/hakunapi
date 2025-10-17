@@ -1,7 +1,5 @@
 package fi.nls.hakunapi.core.property;
 
-import java.time.ZoneOffset;
-
 import fi.nls.hakunapi.core.FeatureCollectionWriter;
 import fi.nls.hakunapi.core.FeatureType;
 import fi.nls.hakunapi.core.FeatureWriter;
@@ -54,7 +52,7 @@ public final class HakunaPropertyWriters {
             }
         };
     }
-
+    
     public static HakunaPropertyWriter getSimplePropertyWriter(String name, HakunaPropertyType type) {
         switch (type) {
         case BOOLEAN:
@@ -151,11 +149,44 @@ public final class HakunaPropertyWriters {
         }
     }
 
+    public static HakunaPropertyWriter getPrimitivePropertyWriter(String name, HakunaPropertyType type, boolean nullable) {
+        switch (type) {
+        case INT:
+            return nullable
+                    ? (vp, i, writer) -> {
+                        if (vp.isNull(i)) {
+                            writer.writeNullProperty(name);
+                        } else {
+                            writer.writeProperty(name, vp.getPrimitiveInt(i));
+                        }
+                    }
+                    : (vp, i, writer) -> writer.writeProperty(name, vp.getPrimitiveInt(i));
+        case TIMESTAMP:
+            return nullable
+                    ? (vp, i, writer) -> {
+                        if (vp.isNull(i)) {
+                            writer.writeNullProperty(name);
+                        } else {
+                            int date = vp.getPrimitiveLocalDateTimeDate(i);
+                            long time = vp.getPrimitiveLocalDateTimeTime(i);
+                            writer.writeTimestampProperty(name, date, time);
+                        } 
+                    }
+                    : (vp, i, writer) -> {
+                        int date = vp.getPrimitiveLocalDateTimeDate(i);
+                        long time = vp.getPrimitiveLocalDateTimeTime(i);
+                        writer.writeTimestampProperty(name, date, time);
+                    };
+        default:
+            throw new IllegalArgumentException();
+        }
+    }
+    
     public static HakunaPropertyWriter getIdPropertyWriter(FeatureType ft, String layerName, String name, HakunaPropertyType type) {
         switch (type) {
         case INT:
             return (vp, i, writer) -> {
-                writeStartFeature(ft, layerName, writer, type, vp.getInt(i));
+                writeStartFeaturePrimitiveId(ft, layerName, writer, vp.getPrimitiveInt(i));
             };
         case LONG:
             return (vp, i, writer) -> {
@@ -180,7 +211,16 @@ public final class HakunaPropertyWriters {
         int len = DToA.dtoa(d, b, 0, 0, 8);
         return new String(b, 0, len);
     }
-
+    
+    private static void writeStartFeaturePrimitiveId(FeatureType ft, String layerName, FeatureWriter writer, int fid) throws Exception {
+        if (writer instanceof FeatureCollectionWriter) {
+            FeatureCollectionWriter fcWriter = (FeatureCollectionWriter) writer;
+            fcWriter.startFeature(fid);
+        } else {
+            SingleFeatureWriter singleWriter = (SingleFeatureWriter) writer;
+            singleWriter.startFeature(ft, layerName, fid);
+        }
+    }
     
     private static void writeStartFeature(FeatureType ft, String layerName, FeatureWriter writer, HakunaPropertyType type, Object value) throws Exception {
         if (writer instanceof FeatureCollectionWriter) {

@@ -15,6 +15,8 @@ import fi.nls.hakunapi.core.geom.HakunaGeometry;
 import fi.nls.hakunapi.core.property.HakunaPropertyType;
 import fi.nls.hakunapi.core.schemas.Link;
 import fi.nls.hakunapi.core.util.DefaultFloatingPointFormatter;
+import fi.nls.hakunapi.core.util.PackedLocalDate;
+import fi.nls.hakunapi.core.util.PackedLocalTime;
 
 public abstract class CSVFeatureWriterBase implements FeatureWriter {
 
@@ -108,6 +110,19 @@ public abstract class CSVFeatureWriterBase implements FeatureWriter {
             csv.writeLocalDateTime(value);
         }
     }
+    
+    @Override
+    public void writeTimestampProperty(String name, int date, long time) throws Exception {
+        int y = PackedLocalDate.getYear(date);
+        int m = PackedLocalDate.getMonth(date);
+        int d = PackedLocalDate.getDay(date);
+        int hh = PackedLocalTime.getHour(time);
+        int mm = PackedLocalTime.getMins(time);
+        int ss = PackedLocalTime.getSecs(time);
+        int nano = PackedLocalTime.getNano(time);
+        csv.writeLocalDateTime(y, m, d, hh, mm, ss, nano);
+    }
+
 
     @Override
     public void writeProperty(String name, Instant value) throws Exception {

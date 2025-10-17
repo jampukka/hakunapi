@@ -276,15 +276,19 @@ public class CSVWriter implements AutoCloseable, Flushable {
     }
 
     public void writeLocalDateTime(LocalDateTime value) throws IOException {
+        writeLocalDateTime(value.getHour(), value.getMonthValue(), value.getDayOfMonth(), value.getHour(), value.getMinute(), value.getSecond(), value.getNano());
+    }
+
+    public void writeLocalDateTime(int year, int month, int day, int hour, int minutes, int seconds, int nanos) throws IOException {
         // quotes, T, Z and last char (5)
         if (pos + 5 + LocalDateOutput.MAX_BYTE_LEN + LocalDateOutput.MAX_BYTE_LEN_TIME >= BUF_LEN) {
             flush();
         }
 
         buf[pos++] = QUOTE;
-        pos = LocalDateOutput.outputLocalDate(value.toLocalDate(), buf, pos);
+        pos = LocalDateOutput.outputLocalDate(year, month, day, buf, pos);
         buf[pos++] = 'T';
-        pos = LocalDateOutput.outputLocalTime(value.toLocalTime(), buf, pos);
+        pos = LocalDateOutput.outputLocalTime(hour, minutes, seconds, nanos, buf, pos);
         buf[pos++] = 'Z';
         buf[pos++] = QUOTE;
         writeCommaOrLineFeed();

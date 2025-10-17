@@ -56,9 +56,8 @@ public class SimpleFeatureWriter {
 
     public static void writeFeature(FeatureWriter writer, FeatureType ft, List<HakunaProperty> properties,
             ValueProvider feature) throws Exception {
-        int i = 0;
-        for (HakunaProperty property : properties) {
-            property.write(feature, i++, writer);
+        for (int i = 0, n = properties.size(); i < n; i++) {
+            properties.get(i).write(feature, i, writer);
         }
     }
 

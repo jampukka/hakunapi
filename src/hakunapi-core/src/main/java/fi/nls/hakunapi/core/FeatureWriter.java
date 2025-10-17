@@ -9,6 +9,8 @@ import java.util.Map;
 
 import fi.nls.hakunapi.core.geom.HakunaGeometry;
 import fi.nls.hakunapi.core.schemas.Link;
+import fi.nls.hakunapi.core.util.PackedLocalDate;
+import fi.nls.hakunapi.core.util.PackedLocalTime;
 
 public interface FeatureWriter extends AutoCloseable {
 
@@ -35,6 +37,17 @@ public interface FeatureWriter extends AutoCloseable {
     public void writeProperty(String name, float value) throws Exception;
     public void writeProperty(String name, double value) throws Exception;
     public void writeNullProperty(String name) throws Exception;
+
+    public default void writeTimestampProperty(String name, int date, long time) throws Exception {
+        int y = PackedLocalDate.getYear(date);
+        int m = PackedLocalDate.getMonth(date);
+        int d = PackedLocalDate.getDay(date);
+        int hh = PackedLocalTime.getHour(time);
+        int mm = PackedLocalTime.getMins(time);
+        int ss = PackedLocalTime.getSecs(time);
+        int nano = PackedLocalTime.getNano(time);
+        writeProperty(name, LocalDateTime.of(y, m, d, hh, mm, ss, nano));
+    }
 
     public void writeStartObject(String name) throws Exception;
     public void writeCloseObject() throws Exception;

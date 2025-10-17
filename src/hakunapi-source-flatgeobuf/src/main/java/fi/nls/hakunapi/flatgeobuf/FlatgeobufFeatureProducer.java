@@ -50,12 +50,12 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
             filters.remove(f);
             if (!envelope.contains(ft.fgb.meta.envelope)) {
                 Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and);
-                return new FlatgeobufFeatureStream(ft.fgb.meta, ft.fgb.boundingBoxSearch(envelope), request.getOffset(), filterFn, indexMap);
+                return new FlatgeobufAllFeaturesStream(ft.fgb, request.getOffset(), filterFn, indexMap);
             }
         }
 
-        Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and); 
-        return new FlatgeobufFeatureStream(ft.fgb.meta, ft.fgb.all(), request.getOffset(), filterFn, indexMap);
+        Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and);
+        return new FlatgeobufAllFeaturesStream(ft.fgb, request.getOffset(), filterFn, indexMap);
     }
 
     @Override

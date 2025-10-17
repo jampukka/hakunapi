@@ -10,22 +10,26 @@ import org.locationtech.jts.geom.Envelope;
 import fi.nls.hakunapi.core.FeatureStream;
 import fi.nls.hakunapi.core.ValueProvider;
 
-public class FlatgeobufFeatureStream implements FeatureStream {
+public class FlatgeobufAllFeaturesStream implements FeatureStream {
 
     private final Flatgeobuf fgb;
-    private final Iterator<ByteBuffer> featureIterator;
     private final Predicate<ValueProvider> filterFn;
     private final FlatgeobufFeatureValueProvider provider;
     private final ValueProviderFacade next;
 
-    private boolean closed;
-    private boolean buffered;
-    
+    private final long fileSize; 
+    private final MutableInt pos;
     private long off;
 
-    public FlatgeobufFeatureStream(Flatgeobuf fgb, Envelope bboxQuery, int offset, Predicate<ValueProvider> filterFn, int[] indexMap) {
+    private boolean closed;
+    private boolean buffered;
+
+    public FlatgeobufAllFeaturesStream(Flatgeobuf fgb, int offset, Predicate<ValueProvider> filterFn, int[] indexMap) {
         this.fgb = fgb;
+        this.fileSize = fgb.fileSize;
         this.filterFn = filterFn;
+        this.pos = new MutableInt();
+        this.off = fgb.featuresOffset;
         this.provider = new FlatgeobufFeatureValueProvider(fgb.meta.geometryType, fgb.meta.srid, fgb.meta.columns);
         this.next = new ValueProviderFacade(provider, indexMap);
         for (int i = 0; i < offset && readNext(); i++); // Skip offset
@@ -42,8 +46,12 @@ public class FlatgeobufFeatureStream implements FeatureStream {
     }
 
     private boolean readNext() {
-        while (featureIterator.hasNext()) {
-            provider.setFeature(featureIterator.next());
+        while (off < fileSize) {
+            int len = fgb.file.getInt(off);
+            off += 4;
+            ByteBuffer bb = fgb.file.getBytes(off, len, pos);
+            provider.setFeature(bb, pos.v);
+            off += len;
             if (filterFn.test(provider)) {
                 return buffered = true;
             }
