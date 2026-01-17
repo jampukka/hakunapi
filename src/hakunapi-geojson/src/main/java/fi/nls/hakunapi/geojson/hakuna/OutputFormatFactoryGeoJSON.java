@@ -7,6 +7,7 @@ import fi.nls.hakunapi.core.FloatingPointFormatter;
 import fi.nls.hakunapi.core.OutputFormat;
 import fi.nls.hakunapi.core.OutputFormatFactorySpi;
 import fi.nls.hakunapi.core.util.DefaultFloatingPointFormatter;
+import fi.nls.hakunapi.core.util.FixedFloatingPoint3Formatter;
 
 public class OutputFormatFactoryGeoJSON implements OutputFormatFactorySpi {
 
@@ -20,7 +21,7 @@ public class OutputFormatFactoryGeoJSON implements OutputFormatFactorySpi {
         boolean forceLonLat = "true".equalsIgnoreCase(params.get("forceLonLat"));
 
         FloatingPointFormatter formatterDegrees = parseFormatter(params.get("formatter.degrees"), DefaultFloatingPointFormatter.DEFAULT_DEGREES);
-        FloatingPointFormatter formatterMeters = parseFormatter(params.get("formatter.meters"), DefaultFloatingPointFormatter.DEFAULT_METERS);
+        FloatingPointFormatter formatterMeters = parseFormatter(params.get("formatter.meters"), FixedFloatingPoint3Formatter.INSTANCE);
 
         return new OutputFormatGeoJSON(forceLonLat, formatterDegrees, formatterMeters);
     }
