@@ -33,6 +33,7 @@ public class FlatgeobufAllFeaturesStream implements FeatureStream {
         this.provider = new FlatgeobufFeatureValueProvider(fgb.meta.geometryType, fgb.meta.srid, fgb.meta.columns);
         this.next = new ValueProviderFacade(provider, indexMap);
         for (int i = 0; i < offset && readNext(); i++); // Skip offset
+        buffered = false;
     }
 
     @Override

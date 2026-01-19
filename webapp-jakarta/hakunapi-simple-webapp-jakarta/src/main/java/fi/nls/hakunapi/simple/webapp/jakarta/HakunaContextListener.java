@@ -38,6 +38,7 @@ import fi.nls.hakunapi.core.OutputFormat;
 import fi.nls.hakunapi.core.OutputFormatProvider;
 import fi.nls.hakunapi.core.SRIDCode;
 import fi.nls.hakunapi.core.SimpleSource;
+import fi.nls.hakunapi.core.cache.HttpPageCache;
 import fi.nls.hakunapi.core.config.HakunaApplicationJson;
 import fi.nls.hakunapi.core.config.HakunaConfigParser;
 import fi.nls.hakunapi.core.schemas.FunctionsContent;

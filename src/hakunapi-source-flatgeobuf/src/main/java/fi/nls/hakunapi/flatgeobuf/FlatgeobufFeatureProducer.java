@@ -48,9 +48,14 @@ public class FlatgeobufFeatureProducer implements FeatureProducer {
             Geometry geom = ProjectionHelper.reprojectToStorageCRS(prop, (Geometry) f.getValue());
             Envelope envelope = geom.getEnvelopeInternal();
             filters.remove(f);
-            if (!envelope.contains(ft.fgb.meta.envelope)) {
+            if (envelope.contains(ft.fgb.meta.envelope)) {
+                // Query envelope contains entire dataset, scan all features
                 Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and);
                 return new FlatgeobufAllFeaturesStream(ft.fgb, request.getOffset(), filterFn, indexMap);
+            } else {
+                // Use spatial index for bbox filtering
+                Predicate<ValueProvider> filterFn = toPredicate(ft, filters, Predicate::and);
+                return new FlatgeobufFeatureStream(ft.fgb, envelope, request.getOffset(), filterFn, indexMap);
             }
         }
 

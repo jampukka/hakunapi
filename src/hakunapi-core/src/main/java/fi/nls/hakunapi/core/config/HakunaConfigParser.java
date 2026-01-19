@@ -36,6 +36,7 @@ import fi.nls.hakunapi.core.PaginationStrategyHybrid;
 import fi.nls.hakunapi.core.PaginationStrategyOffset;
 import fi.nls.hakunapi.core.SimpleFeatureType;
 import fi.nls.hakunapi.core.SimpleSource;
+import fi.nls.hakunapi.core.cache.HttpPageCache;
 import fi.nls.hakunapi.core.filter.Filter;
 import fi.nls.hakunapi.core.param.GetFeatureParam;
 import fi.nls.hakunapi.core.projection.ProjectionTransformerFactory;
@@ -84,6 +85,7 @@ public class HakunaConfigParser {
 
     public HakunaConfigParser(Properties cfg) {
         this.cfg = HakunapiPlaceholder.replacePlaceholders(cfg);
+        HttpPageCache.init(cfg);
     }
 
     public Info readInfo() {
