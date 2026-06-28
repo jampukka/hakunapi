@@ -11,12 +11,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.core.JsonEncoding;
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.SerializableString;
-import com.fasterxml.jackson.core.io.SerializedString;
-
+import tools.jackson.core.JsonEncoding;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.ObjectWriteContext;
+import tools.jackson.core.SerializableString;
+import tools.jackson.core.io.SerializedString;
+import tools.jackson.core.json.JsonFactory;
 import fi.nls.hakunapi.core.FeatureType;
 import fi.nls.hakunapi.core.FeatureWriter;
 import fi.nls.hakunapi.core.SRIDCode;
@@ -26,7 +26,9 @@ import fi.nls.hakunapi.core.schemas.Link;
 
 public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
 
-    private static final JsonFactory FACTORY = new JsonFactory();
+    private static final JsonFactory FACTORY = JsonFactory.builder()
+        .rootValueSeparator(Strings.NEW_LINE)
+        .build();
 
     private OutputStream out;
     protected JsonGenerator w;
@@ -42,8 +44,7 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
         } else {
             this.out = new BufferedOutputStream(out);
         }
-        this.w = FACTORY.createGenerator(out, JsonEncoding.UTF8);
-        this.w.setRootValueSeparator(Strings.NEW_LINE);
+        this.w = FACTORY.createGenerator(ObjectWriteContext.empty(), out, JsonEncoding.UTF8);
     }
 
     @Override
@@ -83,7 +84,7 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
     public void writeProperty(String name, String value) throws Exception {
         if (value != null) {
             if (name != null) {
-                w.writeFieldName(getProperty(name));
+                w.writeName(getProperty(name));
             }
             w.writeString(value);
         }
@@ -93,7 +94,7 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
     public void writeProperty(String name, LocalDate value) throws Exception {
         if (value != null) {
             if (name != null) {
-                w.writeFieldName(getProperty(name));
+                w.writeName(getProperty(name));
             }
             w.writeString(value.toString());
         }
@@ -103,7 +104,7 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
     public void writeProperty(String name, LocalDateTime value) throws Exception {
         if (value != null) {
             if (name != null) {
-                w.writeFieldName(getProperty(name));
+                w.writeName(getProperty(name));
             }
             w.writeString(value.toString());
         }
@@ -113,7 +114,7 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
     public void writeProperty(String name, Instant value) throws Exception {
         if (value != null) {
             if (name != null) {
-                w.writeFieldName(getProperty(name));
+                w.writeName(getProperty(name));
             }
             w.writeString(value.toString());
         }
@@ -122,7 +123,7 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
     @Override
     public void writeProperty(String name, boolean value) throws Exception {
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeBoolean(value);
     }
@@ -130,7 +131,7 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
     @Override
     public void writeProperty(String name, int value) throws Exception {
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeNumber(value);
     }
@@ -138,7 +139,7 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
     @Override
     public void writeProperty(String name, long value) throws Exception {
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeNumber(value);
     }
@@ -146,7 +147,7 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
     @Override
     public void writeProperty(String name, float value) throws Exception {
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeNumber(value);
     }
@@ -154,7 +155,7 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
     @Override
     public void writeProperty(String name, double value) throws Exception {
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeNumber(value);
     }
@@ -167,7 +168,7 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
     @Override
     public void writeStartObject(String name) throws Exception {
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeStartObject();
     }
@@ -180,7 +181,7 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
     @Override
     public void writeStartArray(String name) throws Exception {
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeStartArray();
     }
@@ -196,9 +197,9 @@ public abstract class ESbulkFeatureWriterBase implements FeatureWriter {
 
     protected void writeHeader(SerializedString layername) throws IOException {
         w.writeStartObject();
-        w.writeFieldName(Strings.INDEX);
+        w.writeName(Strings.INDEX);
         w.writeStartObject();
-        w.writeFieldName(Strings._INDEX);
+        w.writeName(Strings._INDEX);
         w.writeString(layername);
         w.writeEndObject();
         w.writeEndObject();

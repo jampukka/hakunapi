@@ -9,10 +9,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.SerializableString;
-import com.fasterxml.jackson.core.io.SerializedString;
-import com.fasterxml.jackson.dataformat.smile.SmileFactory;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.SerializableString;
+import tools.jackson.core.io.SerializedString;
+import tools.jackson.dataformat.smile.SmileFactory;
 
 import fi.nls.hakunapi.core.FeatureWriter;
 import fi.nls.hakunapi.core.GeometryWriter;
@@ -50,14 +50,14 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
 
     @Override
     public void writeTimeStamp() throws Exception {
-        w.writeFieldName(GeoJSONStrings.TIMESTAMP);
+        w.writeName(GeoJSONStrings.TIMESTAMP);
         w.writeString(Instant.now().toString());
     }
 
     @Override
     public void writeLinks(List<Link> links) throws Exception {
         if (links != null && !links.isEmpty()) {
-            w.writeFieldName(GeoJSONStrings.LINKS);
+            w.writeName(GeoJSONStrings.LINKS);
             w.writeStartArray();
             for (Link link : links) {
                 writeLink(link);
@@ -69,22 +69,22 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
     private void writeLink(Link link) throws IOException {
         w.writeStartObject();
 
-        w.writeFieldName(GeoJSONStrings.HREF);
+        w.writeName(GeoJSONStrings.HREF);
         w.writeString(link.getHref());
 
-        w.writeFieldName(GeoJSONStrings.REL);
+        w.writeName(GeoJSONStrings.REL);
         w.writeString(link.getRel());
 
-        w.writeFieldName(GeoJSONStrings.TYPE);
+        w.writeName(GeoJSONStrings.TYPE);
         w.writeString(link.getType());
 
         if (link.getTitle() != null && !link.getTitle().isEmpty()) {
-            w.writeFieldName(GeoJSONStrings.TITLE);
+            w.writeName(GeoJSONStrings.TITLE);
             w.writeString(link.getTitle());
         }
 
         if (link.getHreflang() != null && !link.getHreflang().isEmpty()) {
-            w.writeFieldName(GeoJSONStrings.HREFLANG);
+            w.writeName(GeoJSONStrings.HREFLANG);
             w.writeString(link.getHreflang());
         }
 
@@ -94,14 +94,14 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
     @Override
     public void writeNumberReturned(int numberReturned) throws Exception {
         if (numberReturned >= 0) {
-            w.writeFieldName(GeoJSONStrings.NUMBER_RETURNED);
+            w.writeName(GeoJSONStrings.NUMBER_RETURNED);
             w.writeNumber(numberReturned);
         }
     }
 
     protected void openProperties() throws IOException {
         if (!propertiesOpen) {
-            w.writeFieldName(GeoJSONStrings.PROPERTIES);
+            w.writeName(GeoJSONStrings.PROPERTIES);
             w.writeStartObject();
             propertiesOpen = true;
         }
@@ -145,7 +145,7 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
         } else {
             openProperties();
             if (name != null) {
-                w.writeFieldName(getProperty(name));
+                w.writeName(getProperty(name));
             }
             w.writeString(value);
         }
@@ -158,7 +158,7 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
         } else {
             openProperties();
             if (name != null) {
-                w.writeFieldName(getProperty(name));
+                w.writeName(getProperty(name));
             }
             w.writeString(value.toString());
         }
@@ -171,7 +171,7 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
         } else {
             openProperties();
             if (name != null) {
-                w.writeFieldName(getProperty(name));
+                w.writeName(getProperty(name));
             }
             w.writeString(value.toString());
         }
@@ -184,8 +184,8 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
         } else {
             openProperties();
             if (name != null) {
-                w.writeFieldName(getProperty(name));
-            }            
+                w.writeName(getProperty(name));
+            }
             w.writeString(value.toString());
         }
     }
@@ -194,7 +194,7 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
     public void writeProperty(String name, boolean value) throws Exception {
         openProperties();
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeBoolean(value);
     }
@@ -203,7 +203,7 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
     public void writeProperty(String name, int value) throws Exception {
         openProperties();
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeNumber(value);
     }
@@ -212,7 +212,7 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
     public void writeProperty(String name, long value) throws Exception {
         openProperties();
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeNumber(value);
     }
@@ -221,7 +221,7 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
     public void writeProperty(String name, float value) throws Exception {
         openProperties();
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeNumber(value);
     }
@@ -230,7 +230,7 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
     public void writeProperty(String name, double value) throws Exception {
         openProperties();
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeNumber(value);
     }
@@ -239,7 +239,7 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
     public void writeNullProperty(String name) throws Exception {
         openProperties();
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeNull();
     }
@@ -248,7 +248,7 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
     public void writeStartObject(String name) throws Exception {
         openProperties();
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeStartObject();
     }
@@ -262,7 +262,7 @@ public abstract class SmileFeatureWriterBase implements FeatureWriter {
     public void writeStartArray(String name) throws Exception {
         openProperties();
         if (name != null) {
-            w.writeFieldName(getProperty(name));
+            w.writeName(getProperty(name));
         }
         w.writeStartArray();
     }

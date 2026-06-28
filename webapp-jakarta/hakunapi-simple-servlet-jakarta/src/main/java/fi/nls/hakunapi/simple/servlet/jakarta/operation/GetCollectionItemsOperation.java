@@ -1,7 +1,6 @@
 package fi.nls.hakunapi.simple.servlet.jakarta.operation;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -99,31 +98,6 @@ public class GetCollectionItemsOperation implements DynamicPathOperation, Dynami
             map.put(f.getMimeType(), FeatureCollectionGeoJSON.class);
         }
         return map;
-    }
-    
-    @GET
-    @Path("/bytes")
-    public Response handleGetBytes(@QueryParam("n") int n) {
-        byte[] buf = new byte[8192];
-        for (int i = 0; i < buf.length; i++) {
-            buf[i] = (byte) i;
-        }
-        
-        StreamingOutput s = new StreamingOutput() {
-            @Override
-            public void write(OutputStream out) throws WebApplicationException, IOException {
-                int i = n;
-                while (i > 0) {
-                    int m = Math.min(i, buf.length);
-                    out.write(buf, 0, m);
-                    i -= m;
-                }
-            }
-        };
-
-        ResponseBuilder builder = Response.ok();
-        builder.entity(s);
-        return builder.build();
     }
 
     @HEAD

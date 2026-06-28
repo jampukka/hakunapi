@@ -23,9 +23,8 @@ RUN --mount=type=cache,target=/root/.m2 \
 # Copy all source code
 COPY . /build
 
-# Build the application
-RUN --mount=type=cache,target=/root/.m2 \
-    mvn -DskipTests -am clean package
+RUN --mount=type=cache,target=/root/.m2/repository \
+    mvn -DskipTests -pl webapp-jakarta/hakunapi-simple-webapp-jakarta -am clean package
 
 FROM tomcat:jdk25
 ENV CATALINA_OUT=/dev/stdout

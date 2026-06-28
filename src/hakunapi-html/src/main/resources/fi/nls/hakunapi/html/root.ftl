@@ -41,16 +41,34 @@
       <p><a href="api.json">OpenAPI 3.0 definition</a></p>
       <p><a href="api.html">Documentation</a></p>
     </div>
-    
+
     <div class="row">
       <h2>Conformance</h2>
       <p><a href="conformance">OGC API conformance classes implemented by this server</a></p>
     </div>
-    
+
+<#assign additionalLinks = model.links?filter(link ->
+  !link.href?split("?")?first?ends_with("/") &&
+  !link.href?split("?")?first?ends_with("/api") &&
+  !link.href?split("?")?first?ends_with("/collections") &&
+  !link.href?split("?")?first?ends_with("/conformance")) />
+<#if additionalLinks?size gt 0>
+    <div class="row">
+      <h2>Additional Resources</h2>
+<#list additionalLinks as link>
+      <p><a href="${link.href}" target="_blank">${link.title}</a></p>
+</#list>
+    </div>
+</#if>
+
     <footer class="pt-3 mt-4 text-muted border-top">Powered by hakunapi</footer>
   </div>
 </main>
-<script>document.getElementById("json-link").href = window.location.href + (window.location.search === "" ? "?f=json" : window.location.search + "&f=json")</script>
+<script>
+const url = new URL(window.location.href);
+url.searchParams.set('f', 'json');
+document.getElementById("json-link").href = url.toString();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js" integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf" crossorigin="anonymous"></script>
 </body>
 </html>

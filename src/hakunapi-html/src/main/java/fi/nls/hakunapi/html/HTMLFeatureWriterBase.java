@@ -42,6 +42,7 @@ public abstract class HTMLFeatureWriterBase implements FeatureWriter {
     protected PropertiesContext properties;
 
     protected int srid;
+    protected SRIDCode sridCode;
 
     @Deprecated
     public HTMLFeatureWriterBase(Configuration configuration) {
@@ -56,6 +57,7 @@ public abstract class HTMLFeatureWriterBase implements FeatureWriter {
     @Override
     public void init(OutputStream out, SRIDCode srid) {
         this.srid = srid.getSrid();
+        this.sridCode = srid;
         this.out = out;
         this.formatter = srid.isDegrees() ? DefaultFloatingPointFormatter.DEFAULT_DEGREES : DefaultFloatingPointFormatter.DEFAULT_METERS;
         this.geojsonBuffer = new ByteArrayOutputStream();

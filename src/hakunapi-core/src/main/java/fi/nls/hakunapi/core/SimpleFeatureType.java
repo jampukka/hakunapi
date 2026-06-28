@@ -11,6 +11,8 @@ import fi.nls.hakunapi.core.param.GetFeatureParam;
 import fi.nls.hakunapi.core.projection.ProjectionTransformerFactory;
 import fi.nls.hakunapi.core.property.HakunaProperty;
 import fi.nls.hakunapi.core.property.simple.HakunaPropertyGeometry;
+import fi.nls.hakunapi.core.schemas.Link;
+import io.swagger.v3.oas.models.media.Schema;
 
 public abstract class SimpleFeatureType implements FeatureType {
 
@@ -32,6 +34,8 @@ public abstract class SimpleFeatureType implements FeatureType {
     private List<Filter> staticFilters;
     private ProjectionTransformerFactory transformerFactory;
     private Map<String, Object> metadata;
+    private List<Link> additionalLinks;
+    private Map<String, Schema<?>> langToSchema;
     
     public abstract FeatureProducer getFeatureProducer();
 
@@ -201,5 +205,22 @@ public abstract class SimpleFeatureType implements FeatureType {
     public Map<String, Object> getMetadata() {
         return metadata;
     }
-    
+
+    @Override
+    public List<Link> getAdditionalLinks() {
+        return additionalLinks == null ? Collections.emptyList() : additionalLinks;
+    }
+
+    public void setAdditionalLinks(List<Link> additionalLinks) {
+        this.additionalLinks = additionalLinks;
+    }
+
+    public Map<String, Schema<?>> getLangToSchema() {
+        return langToSchema;
+    }
+
+    public void setLangToSchema(Map<String, Schema<?>> langToSchema) {
+        this.langToSchema = langToSchema;
+    }
+
 }

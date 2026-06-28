@@ -41,8 +41,8 @@ public class GetCollectionItemsUtil {
                 continue;
             }
             String k = kvp.substring(0, j);
-            String v = kvp.substring(j + 1);
-            qp.put(k, URLDecoder.decode(v, StandardCharsets.UTF_8));
+            String v = URLDecoder.decode(kvp.substring(j + 1), StandardCharsets.UTF_8);
+            qp.put(k, v);
         }
 
         if (remainingCollections != null) {

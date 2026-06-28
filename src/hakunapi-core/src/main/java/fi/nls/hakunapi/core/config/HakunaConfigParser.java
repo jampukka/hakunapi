@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -22,8 +23,9 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import fi.nls.hakunapi.core.CacheSettings;
 import fi.nls.hakunapi.core.DatetimeProperty;
@@ -41,6 +43,7 @@ import fi.nls.hakunapi.core.filter.Filter;
 import fi.nls.hakunapi.core.param.GetFeatureParam;
 import fi.nls.hakunapi.core.projection.ProjectionTransformerFactory;
 import fi.nls.hakunapi.core.property.HakunaProperty;
+import fi.nls.hakunapi.core.schemas.Link;
 import fi.nls.hakunapi.core.property.HakunaPropertyArray;
 import fi.nls.hakunapi.core.property.HakunaPropertyHidden;
 import fi.nls.hakunapi.core.property.HakunaPropertyJSON;
@@ -65,9 +68,15 @@ import fi.nls.hakunapi.simple.servlet.operation.param.ConfigurableSimpleGetFeatu
 import fi.nls.hakunapi.simple.servlet.operation.param.CustomizableGetFeatureParam;
 import fi.nls.hakunapi.simple.servlet.operation.param.DefaultFilterMapper;
 import fi.nls.hakunapi.simple.servlet.operation.param.FilterMapper;
+import fi.nls.hakunapi.core.geom.HakunaGeometryType;
+import fi.nls.hakunapi.core.property.simple.HakunaPropertyGeometry;
+import fi.nls.hakunapi.core.schema.GeometryTypeTransformer;
+import fi.nls.hakunapi.core.schema.HakunaPropertyWithMetadata;
+import fi.nls.hakunapi.core.schema.JsonSchemaUtil;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.security.SecurityScheme.In;
 import io.swagger.v3.oas.models.security.SecurityScheme.Type;
@@ -132,6 +141,33 @@ public class HakunaConfigParser {
         }
 
         return servers;
+    }
+
+    public List<Link> readAdditionalLinks() {
+        return readLinksWithPrefix("api.links");
+    }
+
+    private List<Link> readLinksWithPrefix(String keyPrefix) {
+        String[] names = getMultiple(keyPrefix);
+        List<Link> links = new ArrayList<>();
+        for (String name : names) {
+            String prefix = keyPrefix + "." + name + ".";
+            String href = getRequired(prefix + "href");
+            String rel = getRequired(prefix + "rel");
+            String type = getRequired(prefix + "type");
+            String title = getRequired(prefix + "title");
+            links.add(new Link(href, rel, type, title));
+        }
+        return links;
+    }
+
+    private List<Link> readCollectionLinks(String collectionPrefix) {
+        List<Link> links = new ArrayList<>();
+        // Add default collection links
+        links.addAll(readLinksWithPrefix("default.collections.links"));
+        // Add collection-specific links
+        links.addAll(readLinksWithPrefix(collectionPrefix + "links"));
+        return links;
     }
 
     public Optional<Map<String, SecurityScheme>> readSecuritySchemes() {
@@ -306,6 +342,7 @@ public class HakunaConfigParser {
         ft.setMetadata(parseMetadata(p, path));
         ft.setProjectionTransformerFactory(getProjection(p));
         ft.setCacheSettings(parseCacheConfig(collectionId));
+        ft.setAdditionalLinks(readCollectionLinks(p));
 
         if (ft.getPaginationStrategy() == null) {
             ft.setPaginationStrategy(getPaginationStrategy(p, ft));
@@ -647,7 +684,7 @@ public class HakunaConfigParser {
         }
 
         TypeReference<HashMap<String, Object>> typeRef = new TypeReference<HashMap<String, Object>>() {};
-        ObjectMapper om = new ObjectMapper();
+        ObjectMapper om = new JsonMapper();
 
         try {
             return om.readValue(metadataProp, typeRef);
@@ -684,6 +721,115 @@ public class HakunaConfigParser {
             return findByName(sft.getProperties(), prop);
         }
     }
+
+    /**
+     * Reads named schema entries from config:
+     * schema=en,fi,sv
+     * schema.en.path=path/to/file_en.json
+     * schema.en.lang=en-US  (optional, defaults to the name)
+     * schema.fi.path=path/to/file_fi.json
+     * schema.sv.path=path/to/file_sv.json
+     *
+     * Returns a map from normalized lang to root Schema.
+     */
+    public Map<String, Schema<?>> readSchemas(Path configPath) {
+        String[] schemaNames = getMultiple("schema");
+        if (schemaNames.length == 0) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, Schema<?>> result = new LinkedHashMap<>();
+        for (String name : schemaNames) {
+            String filePath = get("schema." + name + ".path");
+            if (filePath == null || filePath.isEmpty()) {
+                LOG.warn("Schema '{}' has no file path configured (schema.{}.path=...)", name, name);
+                continue;
+            }
+            String lang = get("schema." + name + ".lang", name).toLowerCase(Locale.ROOT);
+            File schemaFile = new File(filePath);
+            Path schemaPath = schemaFile.isAbsolute() ? schemaFile.toPath() : configPath.getParent().resolve(filePath);
+            @SuppressWarnings("rawtypes")
+            Schema rootSchema = JsonSchemaUtil.loadFromFile(schemaPath).orElse(null);
+            if (rootSchema == null) {
+                continue;
+            }
+            result.put(lang, rootSchema);
+        }
+        return result;
+    }
+
+    public FeatureType applyJsonSchema(FeatureType ft, Map<String, Schema<?>> schemas) {
+        if (schemas == null || schemas.isEmpty() || !(ft instanceof SimpleFeatureType)) {
+            return ft;
+        }
+
+        SimpleFeatureType sft = (SimpleFeatureType) ft;
+        String collectionId = sft.getName();
+
+        // Build lang -> collection-level schema map
+        Map<String, Schema<?>> langToSchema = new LinkedHashMap<>();
+        for (Map.Entry<String, Schema<?>> entry : schemas.entrySet()) {
+            Schema<?> collSchema = JsonSchemaUtil.getCollectionSchema(entry.getValue(), collectionId);
+            if (collSchema != null) {
+                langToSchema.put(entry.getKey(), collSchema);
+            }
+        }
+        if (langToSchema.isEmpty()) {
+            return sft;
+        }
+        sft.setLangToSchema(langToSchema);
+
+        // Apply default (first) lang schema for structural enrichment
+        Schema<?> collectionSchema = langToSchema.values().iterator().next();
+
+        if (collectionSchema.getTitle() != null) {
+            sft.setTitle(collectionSchema.getTitle());
+        }
+        if (collectionSchema.getDescription() != null) {
+            sft.setDescription(collectionSchema.getDescription());
+        }
+
+        if (sft.getGeom() != null) {
+            Schema<?> geomSchema = JsonSchemaUtil.getPropertySchema(collectionSchema, sft.getGeom().getName());
+            if (geomSchema == null) {
+                geomSchema = JsonSchemaUtil.getPropertySchema(collectionSchema, "geometry");
+            }
+            if (geomSchema != null && geomSchema.getExtensions() != null
+                    && geomSchema.getExtensions().containsKey("x-geometry-type")) {
+                String xGeometryType = (String) geomSchema.getExtensions().get("x-geometry-type");
+                HakunaGeometryType schemaGeomType = GeometryTypeTransformer.fromWKT(xGeometryType);
+                HakunaPropertyGeometry oldGeom = sft.getGeom();
+                if (!GeometryTypeTransformer.isCompatible(oldGeom.getGeometryType(), schemaGeomType)) {
+                    throw new IllegalArgumentException(String.format(
+                            "Schema geometry type %s is incompatible with stored type %s for collection %s",
+                            schemaGeomType, oldGeom.getGeometryType(), collectionId));
+                }
+                HakunaPropertyGeometry newGeom = new HakunaPropertyGeometry(
+                        oldGeom.getName(), oldGeom.getTable(), oldGeom.getColumn(),
+                        oldGeom.nullable(), schemaGeomType, oldGeom.getSrid(),
+                        oldGeom.getStorageSRID(), oldGeom.getDimension(),
+                        oldGeom.getPropertyWriter());
+                sft.setGeom(newGeom);
+            }
+        }
+
+        List<HakunaProperty> properties = sft.getProperties();
+        if (properties != null) {
+            List<HakunaProperty> enriched = new ArrayList<>(properties.size());
+            for (HakunaProperty prop : properties) {
+                Schema<?> propertySchema = JsonSchemaUtil.getPropertySchema(collectionSchema, prop.getName());
+                if (propertySchema != null) {
+                    enriched.add(new HakunaPropertyWithMetadata(prop, propertySchema));
+                } else {
+                    enriched.add(prop);
+                }
+            }
+            sft.setProperties(enriched);
+        }
+
+        return sft;
+    }
+
 
     private CacheSettings parseCacheConfig(String collectionId) {
         String p = "collections." + collectionId + ".cache";

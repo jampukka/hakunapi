@@ -26,11 +26,10 @@ Hakunapi supports following data stores and output formats:
 
 ### Environment
 
-Services implemented with Hakunapi can be deployed both as [Jakarta EE](https://jakarta.ee/) and [Java EE](https://www.oracle.com/java/technologies/java-ee-glance.html) based servlet web applications. There are `hakunapi-simple-servlet` modules for both cases allowing deploying "off-the-shelf" servlets by just adding geospatial data and feature type specific configuration. Alternatively you can also extend Hakunapi base servlet implementations with custom Java code.
+Services implemented with Hakunapi can be deployed as [Jakarta EE](https://jakarta.ee/) based servlet web applications. Hakunapi provides `hakunapi-simple-servlet` modules for deploying "off-the-shelf" servlets by just adding geospatial data and feature type specific configuration. Alternatively you can also extend Hakunapi base servlet implementations with custom Java code.
 
-Miniminum requirements for the deployment servlet environment:
-* webapps based on modules under `webapp-jakarta`: Java 17+ with a servlet container like [Apache Tomcat](https://tomcat.apache.org/) version 10+ or [Eclipse Jetty](https://jetty.org/) 12+.
-* webapps based on modules under `webapp-javax`: Java 11+ with a servlet container like [Apache Tomcat](https://tomcat.apache.org/) version 9. 
+Minimum requirements for the deployment servlet environment:
+* Java 21+ with a servlet container like [Apache Tomcat](https://tomcat.apache.org/) version 10+ or [Eclipse Jetty](https://jetty.org/) 12+.
 
 It's also possible to embed such Hakunapi services on a containerized environment, like Docker, however the support for this is not yet documented.
 
@@ -46,6 +45,69 @@ See also [issues](https://github.com/nlsfi/hakunapi/issues/139) and the latest [
 * both PostGIS and GeoPackage data sources demonstrated
 
 ## Dependencies
+
+hakunapi keeps the third-party dependency footprint deliberately small. Every dependency must earn its place by serving a real, concrete purpose; if a need can reasonably be covered by a few classes or lines of in-tree code, that is preferred over pulling in a library. Each added dependency has a long-term maintenance cost: version bumps, transitive conflicts, CVE triage and license tracking.
+
+Dependencies should also be scoped as tightly as possible to the modules that actually need them. Each external library is declared in the module that directly uses it, not hoisted into a shared module. Convenience is not a good enough reason to widen the dependency footprint of a module that other components transitively depend on.
+
+For example, FreeMarker is declared only in `hakunapi-html`, the ANTLR runtime only in `hakunapi-cql2`, and each JDBC driver only in its own source module (e.g. PostgreSQL in `hakunapi-source-postgis`). An application that does not use a given source or format module therefore does not pull in its dependencies at all.
+
+Test-scope dependencies are held to a looser standard: they are not shipped to consumers, so the criteria above apply mainly to compile/runtime dependencies.
+
+### Direct external dependencies
+
+The table below lists all direct third-party dependencies declared in the Hakunapi Maven modules. Internal `hakunapi-*` modules are not repeated here (see graphs below).
+
+#### Web API and serialization
+
+| Library | Version | Purpose | Notes |
+| --- | --- | --- | --- |
+| Jakarta EE APIs | servlet 6.0.0, ws.rs 3.1.0, validation 3.0.2 | Servlet API, JAX-RS API | **To consider:** Currently too much logic is implemented against JAX-RS APIs. Additional layer would allow for migration to another Web API layer ("Control" and "Service" layers are now somewhat intermingled) |
+| Jersey | 3.1.11 | JAX-RS implementation: servlet container integration + HK2 dependency injection | |
+| Jackson | 3.1.1 (annotations 2.21) | JSON streaming, object mapping and JAX-RS integration for Jersey. Jackson 3.1.x reuses the 2.21 annotation artifact. | |
+| Swagger Core | 2.2.42 | OpenAPI 3 model classes and serialization for API description generation | |
+
+#### Spatial geometry and CRS
+
+| Library | Version | Purpose | Notes |
+| --- | --- | --- | --- |
+| JTS Topology Suite | 1.20.0 | Geometry model, spatial predicates | |
+| GeoTools | 34.2 | proj-gt: `gt-epsg-hsql` provides EPSG CRS database (HSQL-backed) for CRS definitions and reprojection | **To consider:** hakunapi-proj-proj (PROJ) [Issue #143](https://github.com/nlsfi/hakunapi/issues/143) to replace hakunapi-proj-gt for CRS definitions and reprojection? |
+
+#### Database connectivity
+
+| Library | Version | Purpose | Notes |
+| --- | --- | --- | --- |
+| HikariCP | 4.0.3 | JDBC connection pool | 4.0.3 is the last Java 8 release; current line is **7.x** |
+| PostgreSQL JDBC | 42.7.11 | PostgreSQL / PostGIS JDBC driver for source-postgis | Try to stay up to date |
+| SQLite JDBC | 3.47.0.0 | SQLite JDBC for reading GeoPackage files for source-gpkg | |
+
+#### Output formats and parsing
+
+| Library | Version | Purpose | Notes |
+| --- | --- | --- | --- |
+| FreeMarker | 2.3.33 | HTML template engine for HTML outputs | |
+| Caffeine | 2.9.3 | In-memory caching | Caffeine **3.x** targets Java 11+; no known reason to stay on 2.9. |
+| ANTLR 4 runtime | 4.13.2 | Runtime for the ANTLR-generated CQL2 parser | |
+
+#### Logging and telemetry
+
+| Library | Version | Purpose | Notes |
+| --- | --- | --- | --- |
+| SLF4J | 1.7.25 | Logging facade | SLF4J **2.x** is the current line (and Log4j 2.25 supports it.) |
+| Log4j 2 | 2.25.4 | Logging implementation: API, core, SLF4J bridge, and Jakarta servlet lifecycle integration | |
+
+#### Testing
+
+| Library | Version | Purpose | Notes |
+| --- | --- | --- | --- |
+| JUnit | 4.13.2 | Unit tests | JUnit **5** (Jupiter) is the current line. |
+| Mockito | 4.11.0 | Mocking framework | Mockito **5.x** is the current line (Java 11+ minimum). |
+| Jersey test framework | 3.1.11 | Jersey test container + in-memory test transport | |
+| JsonPath | 2.9.0 | JSONPath assertions in integration tests | |
+| json-schema-validator (networknt) | 3.0.1 | Validates JSON-FG output against the JSON-FG JSON Schema | |
+
+### Dependency graph
 
 This section introduces Hakunapi modules (named with prefix "hakunapi") by simplified dependency graphs with dependencies also to key external packages. 
 
@@ -105,17 +167,6 @@ graph TD
     
     %% Telemetry
     telemetry[hakunapi-telemetry] --> core
-    opentelemetry[hakunapi-telemetry-opentelemetry] --> core
-    opentelemetry --> telemetry
-    opentelemetry --> opentelemetry-api[opentelemetry-api]
-
-    %% Oracle 
-    oracle[hakunapi-source-oracle] --> core
-    oracle --> jts[jts-core]
-    oracle --> ojdbc8[ojdbc8]
-    oracle --> gt-main[gt-main]
-    oracle --> gt-jdbc-oracle[gt-jdbc-oracle]
-    oracle --> hikari
 ```
 
 And the last graph introduces some parts of servlet webapp implementation dependencies, but omits some of the internal dependencies on Hakunapi modules shown in previous graphs (just to keep the visualization simple) and exteranal packages are shown by combining artifacts.
@@ -144,12 +195,6 @@ graph TD
     webapp --> proj_gt[hakunapi-proj-gt]
     webapp --> proj_jhe[hakunapi-proj-jhe]
     webapp --> telemetry[hakunapi-telemetry]
-
-    telemetry-webapp[hakunapi-telemetry-webapp-jakarta] --> core
-    telemetry-webapp --> webapp
-    telemetry-webapp --> telemetry
-    telemetry-webapp --> opentelemetry-api[opentelemetry-api]
-    telemetry-webapp --> log4j-jakarta-web[log4j-jakarta-web]
 ```    
 
 The following sections describe Hakunapi modules introduced on the graph above in more details.
@@ -160,7 +205,7 @@ The following sections describe Hakunapi modules introduced on the graph above i
 
 The `hakunapi-core` module provides the essential building blocks for implementing [OGC API Features](https://ogcapi.ogc.org/features/) compliant services in Java. It handles HTTP request routing, feature collection management, and serialization to supported output formats such as GeoJSON, GeoPackage and GML.
 
-The module abstracts data access, allowing integration with various spatial databases like PostGIS, Oracle, and GeoPackage. It supports filtering and querying features using CQL2, and enables coordinate reference system transformations. The core also manages API metadata, conformance classes, and error handling.
+The module abstracts data access, allowing integration with various spatial databases like PostGIS and GeoPackage. It supports filtering and querying features using CQL2, and enables coordinate reference system transformations. The core also manages API metadata, conformance classes, and error handling.
 
 Telemetry and logging are integrated for monitoring and diagnostics. Comprehensive test utilities are included to facilitate robust API development.
 
@@ -229,10 +274,6 @@ Key differences between PostGIS and GeoPackage support in Hakunapi:
 | Performance & Scalability     | High (large datasets, concurrency)                    | Limited by file access, best for small datasets   |
 | Deployment & Integration      | Server/multi-user, scalable                          | Portable/offline, single-user scenarios           |
 
-### Oracle
-
-The `hakunapi-source-oracle` module adds support for [Oracle Spatial databases](https://www.oracle.com/database/spatial-database/) in Hakunapi. It enables serving geospatial API features from Oracle tables and views, with functionality similar to the PostGIS module. You can map attributes, select geometry columns, and define feature types via configuration or custom Java code.
-
 ## Output data formats (stable)
 
 ### GeoJSON
@@ -253,7 +294,7 @@ As specified by the [OGC API Features](https://ogcapi.ogc.org/features/) Part 1,
 
 This support is implemented by the `hakunapi-html` module and it can be enabled in a Hakunapi feature service using a configuration line like `formats=geojson,html`. An user receives HTML content when the `f=html` URL parameter or the `Accept` header with `text/html` is available in a request.
 
-The HTML content produced is Hakunapi specific according to structure, layout and styling. Anyway for feature collection responses, it should produce same feature items as GeoJSON request would return, but formatted as HTML. If application specific HTML content styling is required this module should be extended or rewritten based on application needs. 
+The HTML content produced includes an interactive Leaflet map by default, with features visualized on a configurable tile layer and displayed in a data table. Maps work with any coordinate system configured via proj4 definitions and per-SRID tile settings, handling both geographic and projected CRS transparently. The HTML templates are customizable and can be extended or replaced for application-specific needs. 
 
 ### GeoPackage
 
@@ -330,51 +371,30 @@ Telemetry functionality in Hakunapi is meant for usage analysis. The logged data
 
 The core telemetry abstraction is defined in the `hakunapi-core` module through several key interfaces like `ServiceTelemetry`, `RequestTelemetry` and `TelemetryFactory`. 
 
-Hakunapi provides two different telemetry implementations, on separate modules, that can be configured using the `telemetry.mode` configuration property. When no configuration is set then the `ServiceTelemetry.NOP` implementation is used (that do not log anything).
+Hakunapi provides a telemetry implementation that can be configured using the `telemetry.mode` configuration property. When no configuration is set then the `ServiceTelemetry.NOP` implementation is used (that do not log anything).
 
 The `hakunapi-telemetry` module (use `log-json` for the mode in configuration) provides a simple JSON-based logging implementation that writes telemetry data to log files.
-
-The `hakunapi-telemetry-opentelemetry` module (use `opentelemetry` for the mode in configuration) provides integration with the OpenTelemetry ecosystem for distributed tracing and metrics based on OpenTelemetry SDK. See [opentelemetry.io](https://opentelemetry.io/) for more information.
 
 ## Webapps and servlets
 
 ### Java versions
 
-Hakunapi code modules has the minimum requirement of Java 11, and Hakunapi officially supports Java 11, Java 17 and 21 versions. Other Java versions are not currently tested.
+Hakunapi code modules require Java 21 as minimum. Other Java versions are not currently tested.
 
 The support for Java 8 was dropped in 2023, see issue [#17](https://github.com/nlsfi/hakunapi/issues/17).
 
 ### About servlet frameworks
 
-Hakunapi provides servlet webapp support both for [Jakarta EE](https://jakarta.ee/) (`jakarta.*`) and [Java EE](https://www.oracle.com/java/technologies/java-ee-glance.html) (`javax.*`) based webapps and servlet containers. See Hakunapi issue [#16](https://github.com/nlsfi/hakunapi/issues/16) for background.
-
-In summary Jakarta EE is the future of enterprise Java; it is actively developed, widely supported, and future-proof for new and modernized applications. Java EE is now legacy, but still widely used in many systems.
-
-Main differences on these frameworks, as analyzed without relation to Hakunapi:
-
-| Aspect           | Jakarta EE                           |              Javax EE        |
-|------------------|--------------------------------------|-------------------------------------|
-| **Namespace**    | Uses `jakarta.*` package prefix      | Uses `javax.*` package prefix       |
-| **Standardization & Ownership** | Managed by Eclipse Foundation, open specification process | Formerly managed by Oracle, closed process; now legacy |
-| **API Evolution**| Actively developed: new features, bugfixes, and specs | No new features; only maintenance for legacy systems |
-| **Servlet Containers & Frameworks** | Modern containers (Tomcat 10+, Jetty 11+, Payara 6+, WildFly 27+) require Jakarta APIs | Older containers (Tomcat 9, Jetty 9/10, GlassFish 5, WildFly <26) use Javax APIs |
-| **Compatibility & Migration** | Requires source code changes (jakarta.* imports) when upgrading from Javax | Legacy code remains compatible but cannot use new Jakarta features |
-| **Maintainability** | Preferred for new projects; easier to get support and updates | Increasing technical debt; harder to maintain as ecosystem evolves |
-| **Future-proofing** | Roadmap includes evolution of Jakarta EE, MicroProfile, new cloud-native features | No roadmap for Javax EE; only bugfixes or security patches for legacy |
-| **Community & Ecosystem** | Vibrant, growing community and tooling | Shrinking community; focus shifting to Jakarta EE |
-| **Vendor Support** | Most vendors moving to Jakarta APIs; long-term support planned | Support waning, likely to end as Javax becomes obsolete |
-| **Best Practice** | Use Jakarta EE for all new and actively maintained apps | Use Javax EE only for maintaining legacy apps that cannot migrate |
+Hakunapi targets [Jakarta EE](https://jakarta.ee/) for servlet webapp support. Jakarta EE is actively developed, widely supported, and future-proof for new and modernized applications.
 
 ### Hakunapi webapp and servlet modules
 
-There are multiple modules in Hakunapi for both [Jakarta EE](https://jakarta.ee/) and [Java EE](https://www.oracle.com/java/technologies/java-ee-glance.html) frameworks.
-
-These modules can be categorized as:
+The webapp and servlet modules can be categorized as:
 * `hakunapi-simple-servlet`: core servlet classes, used for implementing customized web applications with logic written in Java code
 * `hakunapi-simple-webapp`: ready-to-deploy web application, add only configuration
 * `hakunapi-simple-webapp-test`: testing for the simple webapp
-* `hakunapi-oracle-webapp`: tailored web application for Oracle Spatial databases
-* `hakunapi-telemetry-webapp`: telemetry and monitoring capabilities
+
+`hakunapi-simple-webapp-jakarta` bundles a broad set of source, format and projection modules to cover the typical use case out of the box. If a deployment only needs a subset of those modules — for example just PostGIS + GeoJSON + HTML, without GeoPackage, JSON-FG, Smile, ES-bulk or CSV — it is recommended to build a custom `-webapp` project: depend on `hakunapi-simple-servlet-jakarta` (and `hakunapi-simple-webapp-jakarta:classes` if you want to reuse the bootstrap), and add only the source/format/projection modules you actually use. This keeps the deployable WAR small and avoids pulling in unused dependencies.
 
 See details in following sections.
 
@@ -382,7 +402,7 @@ See details in following sections.
 
 As described in the official [Javax to Jakarta](https://jakarta.ee/blogs/javax-jakartaee-namespace-ecosystem-progress/) namespace migration design document, Jakarta EE 8 was still fully compatible with the Java EE 8 specification. Jakarta EE 9 introduced the new namespace (*.jakarta) and that was completed in the Jakarta EE 10 specification.  
 
-Suggested minimum requirements for [Jakarta EE](https://jakarta.ee/) based Hakunapi web applications are Java 17 and Jakarta EE 10. Use Jakarta EE 10+ compliant servlet containers like [Apache Tomcat](https://tomcat.apache.org/) version 10+ (see also a more detailed summary of [Tomcat versions](https://tomcat.apache.org/whichversion.html)) or [Eclipse Jetty](https://jetty.org/) 12+.
+Suggested minimum requirements for [Jakarta EE](https://jakarta.ee/) based Hakunapi web applications are Java 21 and Jakarta EE 10. Use Jakarta EE 10+ compliant servlet containers like [Apache Tomcat](https://tomcat.apache.org/) version 10+ (see also a more detailed summary of [Tomcat versions](https://tomcat.apache.org/whichversion.html)) or [Eclipse Jetty](https://jetty.org/) 12+.
 
 Hakunapi modules (under `webapp-jakarta`) supporting Jakarta EE are described below.
 
@@ -395,26 +415,7 @@ This module provides a lightweight, ready-to-deploy Jakarta Servlet-based web ap
 `hakunapi-simple-webapp-test-jakarta`:
 A companion module focused on integration and functional testing for the simple webapp, including sample datasets, mock configurations, and test utilities.
 
-`hakunapi-telemetry-webapp-jakarta`:
-Adds telemetry and monitoring capabilities to Hakunapi Jakarta webapps, enabling collection of usage statistics, performance metrics, and service health data. This module is valuable for operational monitoring, reporting, and debugging in both development and production environments. It supports integration with external monitoring systems for enhanced visibility.
-
-`hakunapi-oracle-webapp-jakarta`:
-Supplies an application variant of the Hakunapi Jakarta webapp tailored for Oracle Database backends, implementing optimized feature type mapping, connection management, and SQL handling compatible with Oracle spatial extensions. Use this module when building OGC API services over Oracle databases, leveraging full Hakunapi and Jakarta Servlet integration.
-
-In summary these modules are intended to be assembled for building, testing, and operating Jakarta Servlet-based OGC API services with Hakunapi. The `simple-servlet` module supplies core servlet classes; `simple-webapp` wraps them into a complete, runnable webapp; `simple-webapp-test` enables thorough testing of that webapp; `telemetry-webapp` adds monitoring features; and `oracle-webapp` provides specialized support for Oracle Database deployments. Together, they streamline geospatial API development from prototype through production, with extensibility for different backend databases and operational needs.
-
-### Java EE webapps
-
-Minimum requirements for [Java EE](https://www.oracle.com/java/technologies/java-ee-glance.html) based Hakunapi web applications are Java 11 and Java EE 8. Use Java EE compliant servlet containers like [Apache Tomcat](https://tomcat.apache.org/) version 9.
-
-Hakunapi modules (under `webapp-javax`) supporting Java EE are listed below:
-* `hakunapi-simple-servlet-javax`
-* `hakunapi-simple-webapp-javax`
-* `hakunapi-simple-webapp-test-javax`
-* `hakunapi-telemetry-webapp-javax`
-* `hakunapi-oracle-webapp-javax`
-
-Purposes and features of each module are similar to those introduced in the previous section related to Jakarta EE.
+In summary these modules are intended to be assembled for building, testing, and operating Jakarta Servlet-based OGC API services with Hakunapi. The `simple-servlet` module supplies core servlet classes; `simple-webapp` wraps them into a complete, runnable webapp; `simple-webapp-test` enables thorough testing of that webapp. Together, they streamline geospatial API development from prototype through production.
 
 ## Testing
 
