@@ -48,6 +48,7 @@
 		<slf4j.version>1.7.25</slf4j.version>
 		<log4j.version>2.25.4</log4j.version>
 		<pgjdbc.version>42.7.11</pgjdbc.version>
+		<duckdb.version>1.5.4.0</duckdb.version>
 		<geotools.version>34.2</geotools.version>
 		<junit.version>4.13.2</junit.version>
 		<mockito.version>4.11.0</mockito.version>
@@ -77,6 +78,11 @@
 			<dependency>
 				<groupId>fi.nls.hakunapi</groupId>
 				<artifactId>hakunapi-source-postgis</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>fi.nls.hakunapi</groupId>
+				<artifactId>hakunapi-source-duckdb</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>
@@ -198,6 +204,11 @@
 				<groupId>org.postgresql</groupId>
 				<artifactId>postgresql</artifactId>
 				<version>${pgjdbc.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.duckdb</groupId>
+				<artifactId>duckdb_jdbc</artifactId>
+				<version>${duckdb.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.slf4j</groupId>

@@ -33,6 +33,10 @@
         </dependency>
         <dependency>
             <groupId>fi.nls.hakunapi</groupId>
+            <artifactId>hakunapi-source-duckdb</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>fi.nls.hakunapi</groupId>
             <artifactId>hakunapi-proj-gt</artifactId>
             <exclusions>
                 <exclusion>
