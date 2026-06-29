@@ -238,6 +238,19 @@
 	<build>
 		<pluginManagement>
 			<plugins>
+				<!--
+					Pin the compiler plugin so the build is reproducible on any Maven 3.
+					Without it the version comes from the running Maven's super-POM:
+					Maven 3.8.x binds 3.1, which ignores maven.compiler.release and
+					falls back to source/target 5, failing on Java 21. Newer Maven
+					(e.g. 3.9.x on CI) happens to bind a release-aware version, so the
+					build only works there by accident.
+				-->
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-compiler-plugin</artifactId>
+					<version>3.13.0</version>
+				</plugin>
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-war-plugin</artifactId>
