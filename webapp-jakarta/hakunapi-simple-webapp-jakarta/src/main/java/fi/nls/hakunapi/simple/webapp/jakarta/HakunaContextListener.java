@@ -3,7 +3,6 @@ package fi.nls.hakunapi.simple.webapp.jakarta;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.Reader;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -16,7 +15,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.stream.Collectors;
@@ -40,6 +38,7 @@ import fi.nls.hakunapi.core.SRIDCode;
 import fi.nls.hakunapi.core.SimpleSource;
 import fi.nls.hakunapi.core.config.HakunaApplicationJson;
 import fi.nls.hakunapi.core.config.HakunaConfigParser;
+import fi.nls.hakunapi.core.config.SourceLoader;
 import fi.nls.hakunapi.core.schemas.FunctionsContent;
 import fi.nls.hakunapi.core.telemetry.ServiceTelemetry;
 import fi.nls.hakunapi.core.telemetry.TelemetryConfigParser;
@@ -171,45 +170,8 @@ public class HakunaContextListener implements ServletContextListener {
         }
     }
 
-	/*/ may be overridden with property f.ex
-	 db.classes=fi.nls.hakunapi.source.HakunaTestSource
-	 */
-	protected static String[] DEFAULT_SOURCE_CLASSES = new String[] { 
-			//
-			"fi.nls.hakunapi.simple.postgis.PostGISSimpleSource"
-	};
-
 	protected List<SimpleSource> getSources(HakunaConfigParser config) {
-
-		String sourceClassesStr = config.get("db.classes");
-		if(sourceClassesStr==null) {
-			LOG.info("Source: class list null - using defaults");
-		} else {
-			LOG.info("Source: class list " + sourceClassesStr);			
-		}
-
-		String[] sourceClasses = config.getMultiple("db.classes", DEFAULT_SOURCE_CLASSES);
-
-		final List<SimpleSource> sources = Stream.of(sourceClasses).map(clsName -> {
-			try {
-				return Class.forName(clsName);
-			} catch (ClassNotFoundException e1) {
-				LOG.error("Source: class not found " + clsName);
-				return null;
-			}
-		}).filter(Objects::nonNull).map(cls -> {
-			try {
-				SimpleSource source = (SimpleSource) cls.getDeclaredConstructor().newInstance();
-				LOG.info("Source: " + source.getType() + " instance " + source);
-				return source;
-			} catch (InstantiationException | IllegalAccessException | IllegalArgumentException
-					| InvocationTargetException | NoSuchMethodException | SecurityException e) {
-				LOG.error("Source: instantiation exception for " + cls);
-				return null;
-			}
-		}).filter(Objects::nonNull).collect(Collectors.toList());
-
-		return sources;
+		return SourceLoader.load(config);
 	}
 	
 	private static List<SRIDCode> getKnownSrids(Properties p, HakunaConfigParser config) {

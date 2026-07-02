@@ -17,8 +17,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -29,8 +27,6 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
-import fi.nls.hakunapi.core.BranchConfig;
-import fi.nls.hakunapi.core.UnionFeatureType;
 import fi.nls.hakunapi.core.CacheSettings;
 import fi.nls.hakunapi.core.DatetimeProperty;
 import fi.nls.hakunapi.core.FeatureType;
@@ -43,7 +39,6 @@ import fi.nls.hakunapi.core.PaginationStrategyOffset;
 import fi.nls.hakunapi.core.SimpleFeatureType;
 import fi.nls.hakunapi.core.SimpleSource;
 import fi.nls.hakunapi.core.filter.Filter;
-import fi.nls.hakunapi.core.param.BranchParam;
 import fi.nls.hakunapi.core.param.GetFeatureParam;
 import fi.nls.hakunapi.core.projection.ProjectionTransformerFactory;
 import fi.nls.hakunapi.core.property.HakunaProperty;
@@ -322,11 +317,6 @@ public class HakunaConfigParser {
         // Current prefix for properties
         String p = "collections." + collectionId + ".";
 
-        FeatureType union = readUnionCollection(path, sourcesByType, collectionId, p);
-        if (union != null) {
-            return union;
-        }
-
         int[] srids = getSRIDs(get(p + "srid", get("default.collections.srid")));
 
         SimpleSource source;
@@ -385,12 +375,6 @@ public class HakunaConfigParser {
             getFeatureParams.add(parseParameter(hakunaProperty, cfgPrefix));
         }
 
-        BranchConfig branchConfig = parseBranchConfig(p);
-        if (branchConfig != null) {
-            ft.setBranchConfig(branchConfig);
-            getFeatureParams.add(new BranchParam(branchConfig));
-        }
-
         ft.setQueryableProperties(queryableProperties);
         ft.setParameters(getFeatureParams);
 
@@ -445,85 +429,6 @@ public class HakunaConfigParser {
         }
 
         return ft;
-    }
-
-    /**
-     * Resolve a static UNION overlay collection, if this collection declares one.
-     *
-     * <pre>
-     * collections.&lt;id&gt;.union.master = &lt;collectionId&gt;   (base dataset)
-     * collections.&lt;id&gt;.union.branch = &lt;collectionId&gt;   (overlay; wins on id collision)
-     * </pre>
-     *
-     * Both children are ordinary collections resolved via {@link #readCollection} (they need not be
-     * listed in the top-level {@code collections} property, so they can stay unpublished). They must
-     * share one schema — same id, geometry and properties in the same order; the union publishes the
-     * master's schema and presentation. Returns {@code null} when no {@code union.master} is set.
-     */
-    private FeatureType readUnionCollection(Path path, Map<String, SimpleSource> sourcesByType,
-            String collectionId, String p) throws Exception {
-        String masterId = get(p + "union.master");
-        String branchId = get(p + "union.branch");
-        if (masterId == null && branchId == null) {
-            return null;
-        }
-        if (masterId == null || branchId == null) {
-            throw new IllegalArgumentException("Collection " + collectionId
-                    + ": union requires both union.master and union.branch");
-        }
-
-        FeatureType master = readCollection(path, sourcesByType, masterId);
-        FeatureType branch = readCollection(path, sourcesByType, branchId);
-
-        UnionFeatureType union = new UnionFeatureType(branch, master);
-        union.setName(collectionId);
-        // Schema (id/geom/properties) is delegated to master by UnionFeatureType; only copy the
-        // non-schema, non-rebinding presentation state here.
-        union.setQueryableProperties(master.getQueryableProperties());
-        union.setDatetimeProperties(master.getDatetimeProperties());
-        union.setPaginationStrategy(master.getPaginationStrategy());
-        union.setDefaultOrderBy(master.getDefaultOrderBy());
-        union.setStaticFilters(master.getStaticFilters());
-        union.setProjectionTransformerFactory(master.getProjectionTransformerFactory());
-        union.setSpatialExtent(master.getSpatialExtent());
-        union.setTemporalExtent(master.getTemporalExtent());
-        union.setMetadata(master.getMetadata());
-
-        String title = get(p + "title", collectionId);
-        String description = get(p + "description", title);
-        union.setTitle(title);
-        union.setDescription(description);
-        union.setParameters(Collections.emptyList());
-        return union;
-    }
-
-    /**
-     * Parse the optional branch (UNION overlay) configuration for a collection.
-     *
-     * <pre>
-     * collections.&lt;id&gt;.branch.pattern       = ^[a-z0-9_]+$        (optional regexp guard; unset = no validation)
-     * collections.&lt;id&gt;.branch.db.&lt;k&gt;       = ...                 (db-props template; {branch} substituted at request time)
-     * </pre>
-     *
-     * The branch reuses the collection's schema/id/table; only the connection target (the
-     * {@code branch.db.*} props) varies per {@code ?branch=} value. Returns {@code null} when no
-     * {@code branch.db.*} props are configured (overlay disabled for this collection).
-     */
-    private BranchConfig parseBranchConfig(String p) {
-        Map<String, String> dbPropsTemplate = getAllStartingWith(p + "branch.db.");
-        if (dbPropsTemplate.isEmpty()) {
-            return null;
-        }
-        String patternStr = get(p + "branch.pattern");
-        Pattern pattern = null;
-        if (patternStr != null) {
-            try {
-                pattern = Pattern.compile(patternStr);
-            } catch (PatternSyntaxException e) {
-                throw new IllegalArgumentException("Invalid regexp for " + p + "branch.pattern: " + e.getMessage());
-            }
-        }
-        return new BranchConfig(pattern, dbPropsTemplate);
     }
 
     private PaginationStrategy getPaginationStrategy(String p, SimpleFeatureType sft) {

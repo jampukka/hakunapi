@@ -79,9 +79,9 @@ public class GetFeatureCollection {
      * Create a shallow copy of this collection re-bound to another {@link FeatureType}, sharing the
      * same property/filter/orderBy objects by reference.
      *
-     * <p>Used by the UNION overlay: the participating feature types expose the same schema (identical
-     * {@link HakunaProperty} instances), so a child producer only needs its own {@code ft} on the
-     * collection while every other field is reused as-is. See {@code docs/design/union-overlay.md}.
+     * <p>Used to rebind a collection to a wrapped/child feature type that exposes the same schema
+     * (identical {@link HakunaProperty} instances), so the target producer only needs its own
+     * {@code ft} on the collection while every other field is reused as-is.
      */
     public GetFeatureCollection withFt(FeatureType ft) {
         GetFeatureCollection copy = new GetFeatureCollection(ft);

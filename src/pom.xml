@@ -13,6 +13,8 @@
 		<module>hakunapi-core</module>
 		<module>hakunapi-config-test</module>
 		<module>hakunapi-source-postgis</module>
+		<module>hakunapi-source-postgis-branch</module>
+		<module>hakunapi-source-union</module>
 		<module>hakunapi-source-duckdb</module>
 		<module>hakunapi-geojson</module>
 		<module>hakunapi-jsonfg</module>

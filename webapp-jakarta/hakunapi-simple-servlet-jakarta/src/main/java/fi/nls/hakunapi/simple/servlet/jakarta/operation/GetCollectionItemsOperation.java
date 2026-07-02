@@ -34,8 +34,6 @@ import org.slf4j.LoggerFactory;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 
-import fi.nls.hakunapi.core.BranchConfig;
-import fi.nls.hakunapi.core.BranchableFeatureType;
 import fi.nls.hakunapi.core.CacheSettings;
 import fi.nls.hakunapi.core.FeatureCollectionWriter;
 import fi.nls.hakunapi.core.FeatureProducer;
@@ -43,8 +41,6 @@ import fi.nls.hakunapi.core.FeatureStream;
 import fi.nls.hakunapi.core.FeatureType;
 import fi.nls.hakunapi.core.OutputFormat;
 import fi.nls.hakunapi.core.SRIDCode;
-import fi.nls.hakunapi.core.SimpleFeatureType;
-import fi.nls.hakunapi.core.UnionFeatureProducer;
 import fi.nls.hakunapi.core.FeatureServiceConfig;
 import fi.nls.hakunapi.core.operation.DynamicPathOperation;
 import fi.nls.hakunapi.core.operation.DynamicResponseOperation;
@@ -115,13 +111,10 @@ public class GetCollectionItemsOperation implements DynamicPathOperation, Dynami
             }
             GetFeatureCollection c = request.getCollections().get(0);
             FeatureType ft = c.getFt();
-            int numberMatched = selectProducer(request, ft).getNumberMatched(request, c);
+            int numberMatched = ft.getFeatureProducer().getNumberMatched(request, c);
             ResponseBuilder builder = Response.ok();
             request.getResponseHeaders().forEach((k, v) -> builder.header(k, v));
-            // A negative count means "not computed" (e.g. a union/branch response); omit the header.
-            if (numberMatched >= 0) {
-                builder.header("OGC-NumberMatched", numberMatched);
-            }
+            builder.header("OGC-NumberMatched", numberMatched);
             return builder.build();
         } catch (IllegalArgumentException e) {
             return ResponseUtil.exception(Status.BAD_REQUEST, e.getMessage());
@@ -229,7 +222,7 @@ public class GetCollectionItemsOperation implements DynamicPathOperation, Dynami
     public static void writeResponseBody(GetFeatureRequest request, FeatureServiceConfig service, List<Link> links, OutputStream out, RequestTelemetry ftt) throws Exception {
         GetFeatureCollection c = request.getCollections().get(0);
         FeatureType ft = c.getFt();
-        FeatureProducer producer = selectProducer(request, ft);
+        FeatureProducer producer = c.getFt().getFeatureProducer();
 
         SRIDCode srid = service.getSridCode(request.getSRID()).orElseThrow();
 
@@ -251,29 +244,6 @@ public class GetCollectionItemsOperation implements DynamicPathOperation, Dynami
 
             span.counts(report);
         }
-    }
-
-    /**
-     * Pick the producer for this request. When a {@code ?branch=} value is active and the feature
-     * type both carries a {@link BranchConfig} and can build a branch producer
-     * ({@link BranchableFeatureType}), overlay the branch onto the master with UNION-distinct-by-id
-     * semantics (branch wins on id collision). Otherwise return the plain producer with zero overhead.
-     */
-    static FeatureProducer selectProducer(GetFeatureRequest request, FeatureType ft) {
-        String branchValue = request.getBranchValue();
-        if (branchValue == null || !(ft instanceof SimpleFeatureType) || !(ft instanceof BranchableFeatureType)) {
-            return ft.getFeatureProducer();
-        }
-        BranchConfig branchConfig = ((SimpleFeatureType) ft).getBranchConfig();
-        if (branchConfig == null) {
-            return ft.getFeatureProducer();
-        }
-        // Value was already validated by BranchParam; resolve the connection target and build the
-        // branch producer over this feature type's own schema/table.
-        Map<String, String> resolvedDbProps = branchConfig.resolveDbProps(branchValue);
-        FeatureProducer branch = ((BranchableFeatureType) ft).getBranchFeatureProducer(resolvedDbProps);
-        FeatureProducer master = ft.getFeatureProducer();
-        return new UnionFeatureProducer(ft, branch, ft, master);
     }
 
     public static void checkUnknownParameters(FeatureServiceConfig service, List<GetFeatureParam> parameters,

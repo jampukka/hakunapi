@@ -36,17 +36,8 @@ public abstract class SimpleFeatureType implements FeatureType {
     private Map<String, Object> metadata;
     private List<Link> additionalLinks;
     private Map<String, Schema<?>> langToSchema;
-    private BranchConfig branchConfig;
 
     public abstract FeatureProducer getFeatureProducer();
-
-    public BranchConfig getBranchConfig() {
-        return branchConfig;
-    }
-
-    public void setBranchConfig(BranchConfig branchConfig) {
-        this.branchConfig = branchConfig;
-    }
 
     public String getName() {
         return name;

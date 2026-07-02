@@ -19,7 +19,6 @@ public class GetFeatureRequest {
     private int srid = Crs.CRS84_SRID;
     private int bboxSrid = Crs.CRS84_SRID;
     private int filterSrid = Crs.CRS84_SRID;
-    private String branchValue;
     private Map<String, String> pathParams;
     private Map<String, String> queryParams;
     private Map<String, String> queryHeaders;
@@ -90,18 +89,6 @@ public class GetFeatureRequest {
 
     public void setFilterSrid(int srid) {
         this.filterSrid = srid;
-    }
-
-    /**
-     * @return the validated {@code ?branch=} value when a branch overlay is active on this request,
-     *         or {@code null} for a plain (non-branch) request.
-     */
-    public String getBranchValue() {
-        return branchValue;
-    }
-
-    public void setBranchValue(String branchValue) {
-        this.branchValue = branchValue;
     }
 
     public Map<String, String> getPathParams() {
