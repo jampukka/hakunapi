@@ -1,15 +1,19 @@
 package fi.nls.hakunapi.simple.postgis;
 
 import java.util.List;
+import java.util.Map;
 
 import javax.sql.DataSource;
 
+import org.postgresql.ds.PGSimpleDataSource;
+
+import fi.nls.hakunapi.core.BranchableFeatureType;
 import fi.nls.hakunapi.core.CaseInsensitiveStrategy;
 import fi.nls.hakunapi.core.FeatureProducer;
 import fi.nls.hakunapi.core.SimpleFeatureType;
 import fi.nls.hakunapi.core.join.Join;
 
-public class SQLFeatureType extends SimpleFeatureType {
+public class SQLFeatureType extends SimpleFeatureType implements BranchableFeatureType {
 
     private String dbSchema;
     private String primaryTable;
@@ -53,6 +57,31 @@ public class SQLFeatureType extends SimpleFeatureType {
     @Override
     public FeatureProducer getFeatureProducer() {
         return new SimplePostGIS(ds);
+    }
+
+    /**
+     * Build a branch producer reading this feature type's table from another database. Uses a
+     * non-pooled {@link PGSimpleDataSource}, so nothing needs closing at the pool level; the JDBC
+     * connection is opened and closed per stream by {@link SimplePostGIS}/{@code BufferedResultSet}.
+     * Recognised props: {@code jdbcUrl} (required), {@code username}, {@code password}.
+     */
+    @Override
+    public FeatureProducer getBranchFeatureProducer(Map<String, String> resolvedDbProps) {
+        String jdbcUrl = resolvedDbProps.get("jdbcUrl");
+        if (jdbcUrl == null || jdbcUrl.isEmpty()) {
+            throw new IllegalArgumentException("branch db props missing required 'jdbcUrl'");
+        }
+        PGSimpleDataSource branchDs = new PGSimpleDataSource();
+        branchDs.setUrl(jdbcUrl);
+        String username = resolvedDbProps.get("username");
+        if (username != null) {
+            branchDs.setUser(username);
+        }
+        String password = resolvedDbProps.get("password");
+        if (password != null) {
+            branchDs.setPassword(password);
+        }
+        return new SimplePostGIS(branchDs);
     }
 
     public CaseInsensitiveStrategy getCaseInsensitiveStrategy() {

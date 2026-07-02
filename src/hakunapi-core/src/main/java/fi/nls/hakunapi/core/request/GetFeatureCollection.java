@@ -75,6 +75,24 @@ public class GetFeatureCollection {
         this.paginationStrategy = paginationStrategy;
     }
 
+    /**
+     * Create a shallow copy of this collection re-bound to another {@link FeatureType}, sharing the
+     * same property/filter/orderBy objects by reference.
+     *
+     * <p>Used by the UNION overlay: the participating feature types expose the same schema (identical
+     * {@link HakunaProperty} instances), so a child producer only needs its own {@code ft} on the
+     * collection while every other field is reused as-is. See {@code docs/design/union-overlay.md}.
+     */
+    public GetFeatureCollection withFt(FeatureType ft) {
+        GetFeatureCollection copy = new GetFeatureCollection(ft);
+        copy.properties = this.properties;
+        copy.filters = this.filters;
+        copy.layername = this.layername;
+        copy.orderBy = this.orderBy;
+        copy.paginationStrategy = this.paginationStrategy;
+        return copy;
+    }
+
     public List<HakunaProperty> getPropertiesBase(FeatureType ft) {
         List<HakunaProperty> properties = new ArrayList<>();
         if (orderBy != null) {
