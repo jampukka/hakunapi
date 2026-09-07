@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.locationtech.jts.geom.CoordinateSequenceFilter;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.io.WKTReader;
 
@@ -25,6 +26,7 @@ import fi.nls.hakunapi.core.ValueProvider;
 import fi.nls.hakunapi.core.config.HakunaConfigParser;
 import fi.nls.hakunapi.core.geom.HakunaGeometry;
 import fi.nls.hakunapi.core.geom.HakunaGeometryType;
+import fi.nls.hakunapi.core.projection.JTSTransformer;
 import fi.nls.hakunapi.core.property.HakunaProperty;
 import fi.nls.hakunapi.core.property.HakunaPropertyType;
 import fi.nls.hakunapi.core.request.GetFeatureCollection;
@@ -142,6 +144,55 @@ public class GpkgSimpleSourceTest {
                 .map(x -> x.toString())
                 .findAny().get();
         assertEquals(expectedLastModified, actualLastModified);
+    }
+
+    /**
+     * SQLite has no ST_Transform, so a GeoPackage source never reprojects in the
+     * database and the geometry mapper has to. This is the path
+     * HakunaPropertyGeometry.getMapperFunction takes for 2D geometry: the WKB
+     * coordinates are reprojected in place, with no JTS geometry built to do it.
+     */
+    @Test
+    public void testReadingFeaturesReprojected() throws Exception {
+        FeatureType ft = cfg.readCollection(null, Map.of(source.getType(), source), "sample_feature_table");
+        GetFeatureRequest request = new GetFeatureRequest();
+        request.setSRID(3857);
+        request.setLimit(1);
+        GetFeatureCollection collection = new GetFeatureCollection(ft);
+
+        Geometry actual = readFirstGeometry(ft, request, collection);
+
+        // The 3067 point the un-reprojected read returns, put through the same
+        // transformer the mapper resolves.
+        Geometry expected = new WKTReader().read("POINT (500000 6770000)");
+        expected.apply((CoordinateSequenceFilter) new JTSTransformer(
+                ft.getProjectionTransformerFactory().getTransformer(3067, 3857)));
+
+        assertEquals(expected.getCoordinate().x, actual.getCoordinate().x, 1e-6);
+        assertEquals(expected.getCoordinate().y, actual.getCoordinate().y, 1e-6);
+    }
+
+    private static Geometry readFirstGeometry(FeatureType ft, GetFeatureRequest request,
+            GetFeatureCollection collection) throws Exception {
+        List<HakunaProperty> properties = collection.getProperties();
+        InMemoryFeatureWriter writer = new InMemoryFeatureWriter();
+        try (FeatureStream fs = ft.getFeatureProducer().getFeatures(request, collection)) {
+            writer.startFeatureCollection(ft, "test");
+            while (fs.hasNext()) {
+                ValueProvider vp = fs.next();
+                int i = 0;
+                for (HakunaProperty property : properties) {
+                    property.write(vp, i++, writer);
+                }
+                writer.endFeature();
+            }
+            writer.endFeatureCollection();
+        }
+        return writer.written.get(0).stream()
+                .filter(x -> x instanceof HakunaGeometry)
+                .map(HakunaGeometry.class::cast)
+                .map(HakunaGeometry::toJTSGeometry)
+                .findAny().get();
     }
 
 }

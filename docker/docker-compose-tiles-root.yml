@@ -1,0 +1,17 @@
+# Local run of exactly the hakuna.fi config: ~/git/hakunapi-infra/upcloud/cfg/ROOT.properties
+# unchanged, its /srv/hakunapi/data/mtkmaasto.gpkg satisfied by a bind mount.
+name: hakunapi-tiles-root
+
+services:
+  hakunapi:
+    build:
+      context: ../.
+      dockerfile: Dockerfile.tiles-testbench
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /home/janne/git/hakunapi-infra/upcloud/cfg/ROOT.properties:/app/config/ROOT.properties:ro
+      - ${GPKG_DIR:-/home/janne/data}/mtkmaasto.gpkg:/srv/hakunapi/data/mtkmaasto.gpkg:ro
+    environment:
+      CATALINA_OPTS: -Dfeatures.hakuna.config.path=/app/config/ROOT.properties

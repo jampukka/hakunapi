@@ -96,5 +96,7 @@
         <module>hakunapi-simple-servlet-jakarta</module>
         <module>hakunapi-simple-webapp-jakarta</module>
         <module>hakunapi-simple-webapp-test-jakarta</module>
+        <!-- Manual test bench for the OGC API - Tiles community modules -->
+        <module>hakunapi-tiles-testbench-jakarta</module>
     </modules>
 </project>

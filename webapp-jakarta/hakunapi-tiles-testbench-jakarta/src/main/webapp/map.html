@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hakunapi tiles test bench</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+    html, body { margin: 0; height: 100%; font: 13px/1.5 system-ui, sans-serif; }
+    #map { position: absolute; inset: 0; }
+    #panel {
+        position: absolute; top: 10px; left: 10px; z-index: 1;
+        background: rgba(255,255,255,.95); padding: 12px 14px; border-radius: 6px;
+        box-shadow: 0 1px 6px rgba(0,0,0,.3); max-width: 340px;
+    }
+    #panel h1 { margin: 0 0 8px; font-size: 14px; }
+    #panel label { display: block; margin: 8px 0 2px; font-weight: 600; }
+    #panel select, #panel input { width: 100%; box-sizing: border-box; }
+    #status { margin-top: 10px; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 11px; }
+    .err { color: #b00; }
+    #hover {
+        position: absolute; bottom: 10px; left: 10px; z-index: 1;
+        background: rgba(255,255,255,.95); padding: 8px 10px; border-radius: 6px;
+        box-shadow: 0 1px 6px rgba(0,0,0,.3); max-width: 340px; display: none;
+        font-family: ui-monospace, monospace; font-size: 11px; white-space: pre-wrap;
+    }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+    <h1>hakunapi tiles test bench</h1>
+    <p style="margin:0 0 8px;color:#555">Web Mercator. MapLibre cannot render a
+    projected tiling scheme &mdash; ETRS-TM35FIN is on
+    <a href="tm35.html">tm35.html</a>.</p>
+    <label for="collection">Collection</label>
+    <select id="collection"></select>
+    <label for="tms">Tile matrix set</label>
+    <select id="tms"></select>
+    <label><input type="checkbox" id="wireframe"> show tile boundaries</label>
+    <div id="status">loading…</div>
+</div>
+<div id="hover"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+// The API owns the war root; this page sits beside it as /map.html. Strip the
+// file name to get the API base, so the bench works whatever the war is named.
+var API = location.href.replace(/\/[^\/]*$/, '').replace(/\/$/, '');
+
+var statusEl = document.getElementById('status');
+var hoverEl = document.getElementById('hover');
+var collectionSel = document.getElementById('collection');
+var tmsSel = document.getElementById('tms');
+var wireframeBox = document.getElementById('wireframe');
+
+function say(msg, isErr) {
+    statusEl.textContent = msg;
+    statusEl.className = isErr ? 'err' : '';
+}
+
+var map = new maplibregl.Map({
+    container: 'map',
+    style: {
+        version: 8,
+        sources: {
+            osm: {
+                type: 'raster',
+                tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '&copy; OpenStreetMap contributors'
+            }
+        },
+        layers: [{id: 'osm', type: 'raster', source: 'osm'}]
+    },
+    // Nudged east and north of the city centre so all of Helsinki fits the
+    // viewport instead of sitting in the bottom-left corner.
+    center: [25.02, 60.23],
+    zoom: 10.5
+});
+map.addControl(new maplibregl.NavigationControl());
+map.addControl(new maplibregl.ScaleControl());
+
+// --- discovery: which collections actually offer vector tiles -----------------
+//
+// A collection advertises them with a tilesets link; that rel is the contract,
+// so the bench follows links rather than guessing the path.
+var TILESETS_REL = 'http://www.opengis.net/def/rel/ogc/1.0/tilesets-vector';
+
+function discover() {
+    return fetch(API + '/collections?f=json')
+        .then(function (r) {
+            if (!r.ok) { throw new Error('/collections -> HTTP ' + r.status); }
+            return r.json();
+        })
+        .then(function (doc) {
+            var withTiles = (doc.collections || []).filter(function (c) {
+                return (c.links || []).some(function (l) { return l.rel === TILESETS_REL; });
+            });
+            if (!withTiles.length) {
+                throw new Error('No collection advertises ' + TILESETS_REL +
+                    '.\nIs tiles.vector=true set, and is a vector tile source on the classpath?');
+            }
+            withTiles.forEach(function (c) {
+                var o = document.createElement('option');
+                o.value = c.id;
+                o.textContent = c.title ? c.id + ' — ' + c.title : c.id;
+                collectionSel.appendChild(o);
+            });
+            return fetch(API + '/tileMatrixSets?f=json');
+        })
+        .then(function (r) {
+            if (!r.ok) { throw new Error('/tileMatrixSets -> HTTP ' + r.status); }
+            return r.json();
+        })
+        .then(function (doc) {
+            (doc.tileMatrixSets || []).forEach(function (t) {
+                var o = document.createElement('option');
+                o.value = t.id;
+                o.textContent = t.id;
+                if (t.id === 'WebMercatorQuad') { o.selected = true; }
+                tmsSel.appendChild(o);
+            });
+            if (!tmsSel.options.length) { throw new Error('No tile matrix sets published'); }
+        });
+}
+
+// --- the layer under test ----------------------------------------------------
+//
+// OGC API - Tiles orders the path {tileMatrix}/{tileRow}/{tileCol}, i.e. z/y/x.
+// MapLibre's placeholders are named after the XYZ slippy-map convention that
+// puts column first, so the template spells out z/y/x: the habitual z/x/y would
+// silently render a transposed world.
+function tileUrl(collection, tms) {
+    // No ?f= here: the tile resource negotiates on Accept, and 'mvt' is not a
+    // valid value for f (that param only offers json/html).
+    return API + '/collections/' + encodeURIComponent(collection) +
+        '/tiles/' + encodeURIComponent(tms) + '/{z}/{y}/{x}';
+}
+
+// One MVT layer can hold any geometry type, so all three are drawn.
+var LAYERS = [
+    {id: 'tb-fill', type: 'fill', paint: {'fill-color': '#3b82f6', 'fill-opacity': 0.35}},
+    {id: 'tb-line', type: 'line', paint: {'line-color': '#1d4ed8', 'line-width': 1.5}},
+    {id: 'tb-point', type: 'circle', paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 2, 16, 5],
+        'circle-color': '#dc2626',
+        'circle-stroke-width': 1,
+        'circle-stroke-color': '#fff'
+    }}
+];
+
+function clearLayer() {
+    LAYERS.concat([{id: 'tb-tile-bounds'}]).forEach(function (l) {
+        if (map.getLayer(l.id)) { map.removeLayer(l.id); }
+    });
+    if (map.getSource('tb')) { map.removeSource('tb'); }
+}
+
+function showLayer() {
+    var collection = collectionSel.value;
+    var tms = tmsSel.value;
+    if (!collection || !tms) { return; }
+
+    clearLayer();
+    var url = tileUrl(collection, tms);
+    map.addSource('tb', {type: 'vector', tiles: [url], minzoom: 0, maxzoom: 20});
+
+    // The source-layer name is the collection id (JavaVectorTileGenerator names
+    // the MVT layer after the collection).
+    LAYERS.forEach(function (l) {
+        map.addLayer({
+            id: l.id, type: l.type, source: 'tb', 'source-layer': collection, paint: l.paint
+        });
+    });
+    if (wireframeBox.checked) { addTileBounds(); }
+
+    say('GET ' + url.replace(API, '') + '\nwaiting for tiles…');
+}
+
+function addTileBounds() {
+    if (!map.getSource('tb') || map.getLayer('tb-tile-bounds')) { return; }
+    map.addLayer({
+        id: 'tb-tile-bounds', type: 'line', source: 'tb',
+        'source-layer': collectionSel.value,
+        paint: {'line-color': '#000', 'line-width': 0.5, 'line-dasharray': [2, 2]},
+        filter: ['==', '$type', 'Polygon']
+    });
+}
+
+// --- feedback: tile loads, errors, and what is actually in a feature ---------
+var loaded = 0;
+map.on('sourcedata', function (e) {
+    if (e.sourceId === 'tb' && e.isSourceLoaded) {
+        loaded++;
+        say('GET ' + tileUrl(collectionSel.value, tmsSel.value).replace(API, '') +
+            '\n' + loaded + ' tile batch(es) loaded');
+    }
+});
+map.on('error', function (e) {
+    // A 204 on an empty tile is normal and MapLibre does not treat it as an
+    // error; anything reaching here is worth showing.
+    say((e.error && e.error.message) || String(e.error || e), true);
+});
+
+map.on('mousemove', function (e) {
+    var hits = map.queryRenderedFeatures(e.point, {layers: LAYERS.map(function (l) { return l.id; })});
+    if (!hits.length) { hoverEl.style.display = 'none'; return; }
+    var f = hits[0];
+    var lines = ['geometry: ' + f.geometry.type];
+    Object.keys(f.properties).slice(0, 12).forEach(function (k) {
+        lines.push(k + ': ' + f.properties[k]);
+    });
+    hoverEl.textContent = lines.join('\n');
+    hoverEl.style.display = 'block';
+});
+
+collectionSel.addEventListener('change', showLayer);
+tmsSel.addEventListener('change', showLayer);
+wireframeBox.addEventListener('change', function () {
+    if (wireframeBox.checked) {
+        addTileBounds();
+    } else if (map.getLayer('tb-tile-bounds')) {
+        map.removeLayer('tb-tile-bounds');
+    }
+});
+
+map.on('load', function () {
+    discover()
+        .then(function () { showLayer(); })
+        .catch(function (err) { say(String(err.message || err), true); });
+});
+</script>
+</body>
+</html>

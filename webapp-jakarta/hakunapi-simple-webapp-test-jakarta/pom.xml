@@ -38,6 +38,18 @@
 			<groupId>fi.nls.hakunapi</groupId>
 			<artifactId>hakunapi-simple-servlet-jakarta</artifactId>
 		</dependency>
+		<!-- OGC API - Tiles is a community module, not bundled in the reference
+		     webapp; the tiles integration tests assemble it here. -->
+		<dependency>
+			<groupId>fi.nls.hakunapi</groupId>
+			<artifactId>hakunapi-tiles-servlet-jakarta</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>fi.nls.hakunapi</groupId>
+			<artifactId>hakunapi-tiles-source-vectortile</artifactId>
+			<scope>test</scope>
+		</dependency>
 		<dependency>
 			<groupId>fi.nls.hakunapi</groupId>
 			<artifactId>hakunapi-simple-webapp-jakarta</artifactId>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    metadata-complete="true" is the point of this file.
+
+    HakunaContextListener carries @WebListener, so on a servlet container it
+    starts itself. TilesContextListener extends it, and the bench needs the
+    subclass: without disabling annotation scanning both would run, each
+    building its own service config, and whichever ran last would win. Turning
+    scanning off means every listener and servlet is declared here, explicitly.
+-->
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee
+        https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+    version="6.0"
+    metadata-complete="true">
+
+    <display-name>hakunapi OGC API - Tiles test bench</display-name>
+
+    <!-- Reads the tile configuration and hands the servlet layer a
+         TilesApiExtension. Replaces HakunaContextListener. -->
+    <listener>
+        <listener-class>fi.nls.hakunapi.tiles.servlet.jakarta.TilesContextListener</listener-class>
+    </listener>
+
+    <!-- The JAX-RS application, normally picked up from @ApplicationPath. -->
+    <servlet>
+        <servlet-name>hakunapi</servlet-name>
+        <servlet-class>org.glassfish.jersey.servlet.ServletContainer</servlet-class>
+        <init-param>
+            <param-name>jakarta.ws.rs.Application</param-name>
+            <param-value>fi.nls.hakunapi.simple.webapp.jakarta.SimpleFeaturesApplication</param-value>
+        </init-param>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+
+    <!-- The API keeps the war root, exactly as in the reference webapp: the
+         links it advertises are built from the request URL, so mounting it under
+         a prefix would make every href point one path segment too high. The
+         bench page therefore lives at /map.html, not at /. -->
+    <servlet-mapping>
+        <servlet-name>hakunapi</servlet-name>
+        <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- ...which means Jersey also owns the bench pages, and answers 404 for
+         them. An exact-match mapping wins over the /* wildcard, so hand those
+         paths back to the container's static file servlet. -->
+    <servlet-mapping>
+        <servlet-name>default</servlet-name>
+        <url-pattern>/map.html</url-pattern>
+        <url-pattern>/tm35.html</url-pattern>
+        <url-pattern>/mtk.html</url-pattern>
+        <url-pattern>/mtk-maplibre.html</url-pattern>
+        <url-pattern>/mtk-tm35.html</url-pattern>
+        <url-pattern>/mtk-style.json</url-pattern>
+    </servlet-mapping>
+
+</web-app>

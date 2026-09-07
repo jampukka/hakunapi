@@ -6,9 +6,9 @@ public class JHeProjectionTransformer implements ProjectionTransformer {
 
     private final int fromSRID;
     private final int toSRID;
-    private final JHeMathTransform transform;
+    private final JHeStage transform;
 
-    public JHeProjectionTransformer(int fromSRID, int toSRID, JHeMathTransform transform) {
+    public JHeProjectionTransformer(int fromSRID, int toSRID, JHeStage transform) {
         this.fromSRID = fromSRID;
         this.toSRID = toSRID;
         this.transform = transform;
@@ -26,7 +26,7 @@ public class JHeProjectionTransformer implements ProjectionTransformer {
 
     @Override
     public void transformInPlace(double[] coords, int off, int n) throws Exception {
-        transform.transform(coords, off, coords, off, n);
+        transform.apply(coords, off, n);
     }
 
     @Override

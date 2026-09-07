@@ -7,6 +7,10 @@
 * OGC API - Features - Part 2: Coordinate Reference Systems by Reference
 * OGC API - Features - Part 3: Filtering and Common Query Language (CQL2)
 
+[OGC API - Tiles](https://ogcapi.ogc.org/tiles/) - Part 1: Core is supported by
+community modules under `src-community/`, serving both vector tiles rendered from
+feature collections and pre-baked map tiles.
+
 This document describes key capabilities of Hakunapi and Java modules implementing them.
 
 Hakunapi supports following data stores and output formats:
@@ -23,6 +27,11 @@ Hakunapi supports following data stores and output formats:
     - GML (3.1.1/WFS 1.1.0)​
     - ElasticSearch Bulk API JSON​
     - Jackson Smile (GeoJSON)
+- Tile sources, community modules (see OGC API - Tiles below)
+  - vector tiles rendered from feature collections ([Mapbox Vector Tiles](https://protomaps.com/docs/mvt))
+  - [WMTS](https://www.ogc.org/standard/wmts/) proxy
+  - [GeoPackage (GPKG)](https://www.geopackage.org/) tile pyramid
+  - [PMTiles](https://github.com/protomaps/PMTiles) archive
 
 ### Environment
 
@@ -389,6 +398,109 @@ The core telemetry abstraction is defined in the `hakunapi-core` module through 
 Hakunapi provides a telemetry implementation that can be configured using the `telemetry.mode` configuration property. When no configuration is set then the `ServiceTelemetry.NOP` implementation is used (that do not log anything).
 
 The `hakunapi-telemetry` module (use `log-json` for the mode in configuration) provides a simple JSON-based logging implementation that writes telemetry data to log files.
+
+## OGC API - Tiles (community modules)
+
+[OGC API - Tiles](https://ogcapi.ogc.org/tiles/) support is provided by community
+modules under `src-community/`. They are not bundled in the reference
+`hakunapi-simple-webapp-jakarta` war, so serving tiles means building your own
+`-webapp` with the modules the deployment needs. See each module's own README for
+configuration.
+
+Tiles adds resources of its own to the API rather than another output format, so
+it plugs into the servlet layer through the `ApiExtension` seam in
+`hakunapi-core`. That seam is what keeps `hakunapi-simple-servlet-jakarta` free
+of any dependency on tiles: an extension declares its conformance classes, its
+JAX-RS operations, and how it appears in the landing page and collections
+documents. `hakunapi-core` itself carries no tiles types.
+
+Two kinds of tile layer are served, distinguished by how the tiles come to be:
+
+- **vector tiles**, rendered from a feature collection on request, under
+  `/collections/{collectionId}/tiles`
+- **map tiles**, pre-baked raster or vector tiles relayed from a store, under
+  `/collections/{collectionId}/map/tiles`. A map tile layer has no feature
+  collection behind it; in OGC API a collection is any geospatial data resource,
+  so such a layer is a collection with no `items`.
+
+Tile sources are discovered at runtime via `ServiceLoader`, so a source is
+available simply by being on the classpath.
+
+The module dependencies are a clean leaf off `hakunapi-core`: nothing under `src/`
+depends on any of them.
+
+```mermaid
+graph TD
+    core[hakunapi-core]
+    servlet[hakunapi-simple-servlet-jakarta] --> core
+
+    tiles["hakunapi-tiles-core (community)"] --> core
+    tsrv["hakunapi-tiles-servlet-jakarta (community)"] --> tiles
+    tsrv --> servlet
+
+    vt["hakunapi-tiles-source-vectortile (community)"] --> tiles
+    wmts["hakunapi-tiles-source-wmts (community)"] --> tiles
+    tgpkg["hakunapi-tiles-source-gpkg (community)"] --> tiles
+    tgpkg --> sqlite[sqlite-jdbc]
+    pmt["hakunapi-tiles-source-pmtiles (community)"] --> tiles
+```
+
+### Tiles model and configuration
+
+[`hakunapi-tiles-core`](../../src-community/hakunapi-tiles-core/README.md)
+*(community module)* defines the tile layer and tile matrix set model, the
+response schemas, the two source SPIs (`TileSource` for map tiles,
+`CollectionTileSource` for vector tiles) and the configuration parser shared by
+every source. `WebMercatorQuad` is built in; further tile matrix sets are defined
+in configuration as a CRS plus an extent and a resolutions array. This module
+serves no tiles by itself.
+
+### Serving tiles over HTTP
+
+[`hakunapi-tiles-servlet-jakarta`](../../src-community/hakunapi-tiles-servlet-jakarta/README.md)
+*(community module)* holds the JAX-RS resources for the tile, tileset and
+`/tileMatrixSets` paths, and the `ApiExtension` implementation that registers
+them. Deploy its `TilesContextListener` in place of `HakunaContextListener`.
+Resources are registered only for the kinds of layer actually configured, and a
+service with no tile layers claims no tiles conformance.
+
+### Tile sources
+
+[`hakunapi-tiles-source-vectortile`](../../src-community/hakunapi-tiles-source-vectortile/README.md)
+*(community module)*
+- renders [Mapbox Vector Tiles](https://protomaps.com/docs/mvt) from feature
+  collections per request, with no pre-baking and no cache
+- the whole MVT pipeline is in-tree with no third-party dependency: the protobuf
+  envelope encoder, geometry clipping and simplification, and the layer encoder
+- reads geometry through `NavigableHakunaGeometry`, fusing the world-to-tile
+  transform into a single pass over the coordinates
+- `tiles.vector=true` publishes every geometry collection as vector tiles with no
+  per-collection configuration
+
+[`hakunapi-tiles-source-wmts`](../../src-community/hakunapi-tiles-source-wmts/README.md)
+*(community module)*
+- proxies an upstream [WMTS](https://www.ogc.org/standard/wmts/) server, relaying
+  tiles verbatim with no decoding or caching
+- supports both KVP and RESTful GetTile
+- fixed upstream query parameters (an API key, say) and an explicit allow-list of
+  inbound parameters to forward
+
+[`hakunapi-tiles-source-gpkg`](../../src-community/hakunapi-tiles-source-gpkg/README.md)
+*(community module)*
+- serves a [GeoPackage](https://www.geopackage.org/) tile pyramid, matching the
+  tile matrix set against the file's own `gpkg_tile_matrix` rows by pixel size
+- detects the media type from the stored tile bytes when not configured
+- uses `sqlite-jdbc`, declared in this module so a deployment serving only WMTS or
+  PMTiles does not pull it in
+
+[`hakunapi-tiles-source-pmtiles`](../../src-community/hakunapi-tiles-source-pmtiles/README.md)
+*(community module)*
+- serves a [PMTiles v3](https://github.com/protomaps/PMTiles) archive in place,
+  from a local file or a remote HTTPS URL via HTTP range requests
+- relays tile bytes as stored, passing gzip through as `Content-Encoding` rather
+  than recompressing
+- requires numeric (XYZ) tile matrix ids, which `WebMercatorQuad` uses
+
 
 ## Webapps and servlets
 

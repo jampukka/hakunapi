@@ -16,7 +16,6 @@ public class EUREFFIN {
     private static final double a = 6378137.0;
     private static final double inv_a = 1.0 / 6378137.0;
     private static final double f = 1.0 / 298.257222101;
-    private static final double e = sqrt(2 * f - (f * f));
 
     private static final double n = f / (2.0 - f);
     private static final double n2 = n * n;
@@ -35,11 +34,21 @@ public class EUREFFIN {
     private static final double h3_ = (61.0 * n3 / 240.0) - (103.0 * n4 / 140.0);
     private static final double h4_ = (49561.0 * n4 / 161280.0);
 
-    private static final double epsilon = 1e-10;
+    // Geodetic latitude to conformal latitude, chi = phi + sum(c_k * sin(2k * phi)),
+    // and back, phi = chi + sum(d_k * sin(2k * chi)). Karney 2011, "Transverse
+    // Mercator with an accuracy of a few nanometers"; these are the JHS-197 chapter
+    // 2.2 / 2.3 isometric latitude and its inverse, as a series rather than as
+    // logarithms and an iteration. Worst case against those, globally: chi 0.6 nm,
+    // phi 4 um -- the inverse direction is the weaker of the two.
+    private static final double c1 = -(2.0 * n) + (2.0 * n2 / 3.0) + (4.0 * n3 / 3.0) - (82.0 * n4 / 45.0);
+    private static final double c2 = (5.0 * n2 / 3.0) - (16.0 * n3 / 15.0) - (13.0 * n4 / 9.0);
+    private static final double c3 = -(26.0 * n3 / 15.0) + (34.0 * n4 / 21.0);
+    private static final double c4 = (1237.0 * n4 / 630.0);
 
-    private static final double asinh(final double x) { return log(x + sqrt(x*x + 1.0)); }
-
-    private static final double sech(final double x) { return 1.0 / cosh(x); }
+    private static final double d1 = (2.0 * n) - (2.0 * n2 / 3.0) - (2.0 * n3) + (116.0 * n4 / 45.0);
+    private static final double d2 = (7.0 * n2 / 3.0) - (8.0 * n3 / 5.0) - (227.0 * n4 / 45.0);
+    private static final double d3 = (56.0 * n3 / 15.0) - (136.0 * n4 / 35.0);
+    private static final double d4 = (4279.0 * n4 / 630.0);
 
     private static final double atanh(final double x) { return 0.5 * log((1.0 + x) / (1.0 - x)); }
 
@@ -48,34 +57,21 @@ public class EUREFFIN {
     }
 
     public static void geoToPlaneRad(double lonRad, double latRad, double k0, double l0, double E0, double[] out, int off) {
-        double Q1 = asinh(tan(latRad));
-        double Q2 = atanh(e * sin(latRad));
-        double Q = Q1 - (e * Q2);
+        // Conformal latitude directly, rather than through asinh and atanh
+        double B = latRad + clenshawSin(sin(latRad), cos(latRad), c1, c2, c3, c4);
 
         double l = lonRad - l0;
-        double B = atan(sinh(Q));
         double n_ = atanh(cos(B) * sin(l));
+        double ks_ = asin(sin(B) * cosh(n_));
 
-        double ks_ = asin(sin(B) / sech(n_));
+        // ks + i*nn = (ks_ + i*n_) + sum(h_k_ * sin(2k * (ks_ + i*n_)))
+        clenshaw(ks_, n_, h1_, h2_, h3_, h4_, out, off);
+        double ks = ks_ + out[off + 0];
+        double nn = n_ + out[off + 1];
 
-        double ks1 = h1_ * sin(2.0 * ks_) * cosh(2.0 * n_);
-        double ks2 = h2_ * sin(4.0 * ks_) * cosh(4.0 * n_);
-        double ks3 = h3_ * sin(6.0 * ks_) * cosh(6.0 * n_);
-        double ks4 = h4_ * sin(8.0 * ks_) * cosh(8.0 * n_);
-
-        double n1_ = h1_ * cos(2.0 * ks_) * sinh(2.0 * n_);
-        double n2_ = h2_ * cos(4.0 * ks_) * sinh(4.0 * n_);
-        double n3_ = h3_ * cos(6.0 * ks_) * sinh(6.0 * n_);
-        double n4_ = h4_ * cos(8.0 * ks_) * sinh(8.0 * n_);
-
-        double ks = ks_ + ks1 + ks2 + ks3 + ks4;
-        double nn = n_ + n1_ + n2_ + n3_ + n4_;
-
-        double N = A1 * ks * k0;
-        double E = A1 * nn * k0 + E0;
-
-        out[off + 0] = E;
-        out[off + 1] = N;
+        double A1k0 = A1 * k0;
+        out[off + 0] = A1k0 * nn + E0;
+        out[off + 1] = A1k0 * ks;
     }
 
     public static void planeToGeo(double E, double N, double k0, double l0, double E0, double[] out, int off) {
@@ -85,40 +81,81 @@ public class EUREFFIN {
     }
 
     public static void planeToGeoRad(double E, double N, double k0, double l0, double E0, double[] out, int off) {
-        double ks = N / (A1 * k0);
-        double nn = (E - E0) / (A1 * k0);
+        double invA1k0 = 1.0 / (A1 * k0);
+        double ks = N * invA1k0;
+        double nn = (E - E0) * invA1k0;
 
-        double ks1_ = h1 * sin(2.0 * ks) * cosh(2.0 * nn);
-        double ks2_ = h2 * sin(4.0 * ks) * cosh(4.0 * nn);
-        double ks3_ = h3 * sin(6.0 * ks) * cosh(6.0 * nn);
-        double ks4_ = h4 * sin(8.0 * ks) * cosh(8.0 * nn);
+        clenshaw(ks, nn, h1, h2, h3, h4, out, off);
+        double ks_ = ks - out[off + 0];
+        double nn_ = nn - out[off + 1];
 
-        double nn1_ = h1 * cos(2.0 * ks) * sinh(2.0 * nn);
-        double nn2_ = h2 * cos(4.0 * ks) * sinh(4.0 * nn);
-        double nn3_ = h3 * cos(6.0 * ks) * sinh(6.0 * nn);
-        double nn4_ = h4 * cos(8.0 * ks) * sinh(8.0 * nn);
+        // sinB is the asin argument itself, and cosB is needed for l regardless,
+        // so expanding B to geodetic below costs no further call into Math
+        double sinB = sin(ks_) / cosh(nn_);
+        double B = asin(sinB);
+        double cosB = cos(B);
+        double l = asin(tanh(nn_) / cosB);
 
-        double ks_ = ks - ks1_ - ks2_ - ks3_ - ks4_;
-        double nn_ = nn - nn1_ - nn2_ - nn3_ - nn4_;
+        out[off + 0] = l0 + l;
+        out[off + 1] = B + clenshawSin(sinB, cosB, d1, d2, d3, d4);
+    }
 
-        double B = asin(sech(nn_) * sin(ks_));
-        double l = asin(tanh(nn_) / cos(B));
+    /**
+     * sum(g_k * sin(2k * x)) for k = 1..4, given sin(x) and cos(x). Same Clenshaw
+     * recurrence as clenshaw() with the imaginary part dropped: four sin calls
+     * become a handful of multiplies, exactly (to a rounding error).
+     */
+    private static double clenshawSin(double sinX, double cosX, double g1, double g2, double g3, double g4) {
+        double sin2x = 2.0 * sinX * cosX;
+        double a = 2.0 * (1.0 - 2.0 * sinX * sinX); // 2 * cos(2x)
 
-        double Q = asinh(tan(B));
-        double Q1 = Q + e * atanh(e * tanh(Q));
+        double u4 = g4;
+        double u3 = a * u4 + g3;
+        double u2 = a * u3 - u4 + g2;
+        double u1 = a * u2 - u3 + g1;
 
-        double delta;
-        do {
-            double Q2 = Q + e * atanh(e * tanh(Q1));
-            delta = Q2 - Q1;
-            Q1 = Q2;
-        } while (abs(delta) > epsilon);
+        return sin2x * u1;
+    }
 
-        double lat = atan(sinh(Q1));
-        double lon = l0 + l;
+    /**
+     * sum(g_k * sin(2k * z)) for k = 1..4 and z = x + i*y, written to out as
+     * (real, imaginary). Both JHS-197 series expansions are that sum: the real part
+     * is sum(g_k sin(2k x) cosh(2k y)) and the imaginary part
+     * sum(g_k cos(2k x) sinh(2k y)). Evaluated term by term that is 16 calls into
+     * Math; Clenshaw recursion over the complex argument needs one sin/cos and one
+     * sinh/cosh, and agrees with the direct sum to within a rounding error.
+     */
+    private static void clenshaw(double x, double y, double g1, double g2, double g3, double g4,
+            double[] out, int off) {
+        double sinX = sin(x);
+        double cosX = cos(x);
+        double sinhY = sinh(y);
+        double coshY = cosh(y);
 
-        out[off + 0] = lon;
-        out[off + 1] = lat;
+        double sin2x = 2.0 * sinX * cosX;
+        double cos2x = 1.0 - 2.0 * sinX * sinX;
+        double sinh2y = 2.0 * sinhY * coshY;
+        double cosh2y = 1.0 + 2.0 * sinhY * sinhY;
+
+        // ar + i*ai = 2 * cos(2z), the Clenshaw recurrence coefficient
+        double ar = 2.0 * cos2x * cosh2y;
+        double ai = -2.0 * sin2x * sinh2y;
+
+        // u_k = (2 cos 2z) u_{k+1} - u_{k+2} + g_k, downwards from k = 4
+        double u4r = g4;
+        double u4i = 0.0;
+        double u3r = ar * u4r + g3;
+        double u3i = ai * u4r;
+        double u2r = ar * u3r - ai * u3i - u4r + g2;
+        double u2i = ar * u3i + ai * u3r - u4i;
+        double u1r = ar * u2r - ai * u2i - u3r + g1;
+        double u1i = ar * u2i + ai * u2r - u3i;
+
+        // sum = sin(2z) * u1
+        double s2r = sin2x * cosh2y;
+        double s2i = cos2x * sinh2y;
+        out[off + 0] = s2r * u1r - s2i * u1i;
+        out[off + 1] = s2r * u1i + s2i * u1r;
     }
 
     public static void geoToTM35fin(double lon, double lat, double[] out, int off) {

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hakunapi tiles test bench — ETRS-TM35FIN</title>
+<link rel="stylesheet" href="https://unpkg.com/ol@10.2.1/ol.css">
+<style>
+    html, body { margin: 0; height: 100%; font: 13px/1.5 system-ui, sans-serif; }
+    #map { position: absolute; inset: 0; background: #f4f4f4; }
+    /* OL puts its zoom buttons top-left, which is where the panel sits. */
+    .ol-zoom { left: auto; right: 8px; }
+    #panel {
+        position: absolute; top: 10px; left: 10px; z-index: 2;
+        background: rgba(255,255,255,.95); padding: 12px 14px; border-radius: 6px;
+        box-shadow: 0 1px 6px rgba(0,0,0,.3); max-width: 360px;
+    }
+    #panel h1 { margin: 0 0 4px; font-size: 14px; }
+    #panel p.sub { margin: 0 0 8px; color: #555; }
+    #panel label { display: block; margin: 8px 0 2px; font-weight: 600; }
+    #panel select { width: 100%; box-sizing: border-box; }
+    #status { margin-top: 10px; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 11px; }
+    .err { color: #b00; }
+    #readout {
+        position: absolute; bottom: 10px; left: 10px; z-index: 1;
+        background: rgba(255,255,255,.95); padding: 8px 10px; border-radius: 6px;
+        box-shadow: 0 1px 6px rgba(0,0,0,.3); max-width: 380px;
+        font-family: ui-monospace, monospace; font-size: 11px; white-space: pre-wrap;
+    }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+    <h1>ETRS-TM35FIN tiles</h1>
+    <p class="sub">MapLibre only renders Web Mercator, so the projected tiling
+    scheme gets its own page on OpenLayers. Web Mercator lives on
+    <a href="map.html">map.html</a>.</p>
+    <label for="collection">Collection</label>
+    <select id="collection"></select>
+    <label for="tms">Tile matrix set</label>
+    <select id="tms"></select>
+    <div id="status">loading…</div>
+</div>
+<div id="readout">move the pointer over the map, click a feature</div>
+
+<script src="https://unpkg.com/proj4@2.12.1/dist/proj4.js"></script>
+<script src="https://unpkg.com/ol@10.2.1/dist/ol.js"></script>
+<script>
+// The API owns the war root; this page sits beside it. Strip the file name.
+var API = location.href.replace(/\/[^\/]*$/, '').replace(/\/$/, '');
+
+var statusEl = document.getElementById('status');
+var readoutEl = document.getElementById('readout');
+var collectionSel = document.getElementById('collection');
+var tmsSel = document.getElementById('tms');
+
+function say(msg, isErr) {
+    statusEl.textContent = msg;
+    statusEl.className = isErr ? 'err' : '';
+}
+
+var TILESETS_REL = 'http://www.opengis.net/def/rel/ogc/1.0/tilesets-vector';
+
+// A projected CRS needs proj4 registered so OpenLayers has real transforms for
+// it: EPSG:3067 is not one of the built-ins. ol.format.MVT reads a tile in a
+// synthetic 'tile-pixels' projection and transforms it into map units, and that
+// transform needs the target CRS to be properly registered.
+//
+// No axisOrientation: TM35FIN is projected (east, north), so coordinates are
+// plain x,y. Declaring 'neu' — which belongs to geographic CRSs like EPSG:4258
+// — would make OpenLayers swap them and nothing would land where it should.
+proj4.defs('EPSG:3067',
+    '+proj=utm +zone=35 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+ol.proj.proj4.register(proj4);
+
+var TM35FIN_EXTENT = [-548576, 6291456, 1548576, 8388608];
+var proj3067 = ol.proj.get('EPSG:3067');
+proj3067.setExtent(TM35FIN_EXTENT);
+
+// Helsinki, nudged east and north so the whole city fits the initial screen.
+var HOME = [385000, 6672000];
+// z11. A cadastral z9 tile holds ~7000 lines and a dozen of them on screen is
+// more than a canvas renderer wants; addresses were sparse enough for z9.
+var HOME_ZOOM = 11;
+
+// The view is replaced in showLayer once the scheme's resolutions are known: a
+// default ol.View derives its own resolutions from the projection extent, so a
+// zoom level would not mean the same thing as a tile matrix level.
+var map = new ol.Map({
+    target: 'map',
+    view: new ol.View({projection: proj3067, center: HOME, zoom: HOME_ZOOM}),
+    controls: ol.control.defaults.defaults().extend([new ol.control.ScaleLine()])
+});
+
+var currentLayer = null;
+
+/**
+ * Build the OpenLayers tile grid straight from the tile matrix set document, so
+ * the page never restates the scheme: origin, resolutions, tile size and the
+ * per-level matrix sizes all come from the server. If hakunapi and this page
+ * disagree about the grid, tiles land in the wrong place and it shows.
+ */
+function toTileGrid(tms) {
+    var matrices = tms.tileMatrices.slice().sort(function (a, b) {
+        return b.cellSize - a.cellSize;   // coarsest first = OL zoom 0
+    });
+    var first = matrices[0];
+    var origin = first.pointOfOrigin;     // [x, y] of the top-left corner
+    var resolutions = matrices.map(function (m) { return m.cellSize; });
+    var tileSize = [first.tileWidth, first.tileHeight];
+
+    // The extent spans matrixWidth tiles from the origin, downwards in y.
+    var extent = [
+        origin[0],
+        origin[1] - first.matrixHeight * first.cellSize * first.tileHeight,
+        origin[0] + first.matrixWidth * first.cellSize * first.tileWidth,
+        origin[1]
+    ];
+
+    return {
+        grid: new ol.tilegrid.TileGrid({
+            extent: extent,
+            origin: origin,
+            resolutions: resolutions,
+            tileSize: tileSize
+        }),
+        matrixIds: matrices.map(function (m) { return m.id; }),
+        extent: extent
+    };
+}
+
+function showLayer(tmsDoc) {
+    var collection = collectionSel.value;
+    if (currentLayer) { map.removeLayer(currentLayer); currentLayer = null; }
+
+    var built = toTileGrid(tmsDoc);
+    var matrixIds = built.matrixIds;
+    var base = API + '/collections/' + encodeURIComponent(collection) +
+        '/tiles/' + encodeURIComponent(tmsDoc.id) + '/';
+
+    var source = new ol.source.VectorTile({
+        format: new ol.format.MVT(),
+        projection: proj3067,
+        tileGrid: built.grid,
+        // OGC path order is {tileMatrix}/{tileRow}/{tileCol}; OL hands us
+        // [z, col, row], and z indexes our own resolution list.
+        tileUrlFunction: function (coord) {
+            var z = coord[0], col = coord[1], row = coord[2];
+            if (z < 0 || z >= matrixIds.length) { return undefined; }
+            return base + matrixIds[z] + '/' + row + '/' + col + '?f=mvt';
+        }
+    });
+
+    say('GET ' + base.replace(API, '') + '{tileMatrix}/{row}/{col}?f=mvt');
+
+    // Only failures are reported. Counting loads meant a DOM write per tile
+    // event, which is slow enough to feel on a pan at these zoom levels.
+    var errors = 0;
+    source.on('tileloaderror', function () {
+        say('GET ' + base.replace(API, '') + '{tileMatrix}/{row}/{col}?f=mvt\n' +
+            (++errors) + ' tiles failed', true);
+    });
+
+    currentLayer = new ol.layer.VectorTile({
+        source: source,
+        style: function (feature) {
+            var type = feature.getGeometry().getType();
+            if (type === 'Point' || type === 'MultiPoint') { return pointStyle; }
+            if (type === 'LineString' || type === 'MultiLineString') { return lineStyle; }
+            return polygonStyle;
+        }
+    });
+    map.addLayer(currentLayer);
+
+    // Give the view the scheme's own resolutions, so zoom level N is tile
+    // matrix level N and every tile is drawn at its native scale.
+    map.setView(new ol.View({
+        projection: proj3067,
+        resolutions: built.grid.getResolutions(),
+        center: HOME,
+        zoom: HOME_ZOOM
+    }));
+}
+
+var pointStyle = new ol.style.Style({
+    image: new ol.style.Circle({
+        radius: 3,
+        fill: new ol.style.Fill({color: '#dc2626'}),
+        stroke: new ol.style.Stroke({color: '#fff', width: 1})
+    })
+});
+var lineStyle = new ol.style.Style({stroke: new ol.style.Stroke({color: '#1d4ed8', width: 1.5})});
+var polygonStyle = new ol.style.Style({
+    fill: new ol.style.Fill({color: 'rgba(59,130,246,.35)'}),
+    stroke: new ol.style.Stroke({color: '#1d4ed8', width: 1})
+});
+
+// --- readout: the tile under the pointer, in the scheme's own indices --------
+// getFeaturesAtPixel hit-tests the whole vector tile layer, so it runs on click
+// rather than on pointermove: doing it per mouse move makes the map crawl.
+map.on('pointermove', function (evt) {
+    if (evt.dragging || !currentLayer) { return; }
+    var grid = currentLayer.getSource().getTileGrid();
+    var z = grid.getZForResolution(map.getView().getResolution());
+    var tc = grid.getTileCoordForCoordAndZ(evt.coordinate, z);
+    readoutEl.textContent =
+        'EPSG:3067  ' + evt.coordinate.map(function (c) { return c.toFixed(0); }).join(', ') +
+        (tc ? '\ntile  z=' + tc[0] + ' row=' + tc[2] + ' col=' + tc[1] : '') +
+        '\nclick a feature for its properties';
+});
+
+map.on('click', function (evt) {
+    var hits = map.getFeaturesAtPixel(evt.pixel);
+    if (!hits || !hits.length) { return; }
+    var props = hits[0].getProperties();
+    readoutEl.textContent = Object.keys(props).filter(function (k) {
+        return k !== 'geometry';
+    }).slice(0, 10).map(function (k) {
+        return k + ': ' + props[k];
+    }).join('\n');
+});
+
+// --- discovery ---------------------------------------------------------------
+var tmsDocs = {};
+
+fetch(API + '/collections?f=json')
+    .then(function (r) {
+        if (!r.ok) { throw new Error('/collections -> HTTP ' + r.status); }
+        return r.json();
+    })
+    .then(function (doc) {
+        var withTiles = (doc.collections || []).filter(function (c) {
+            return (c.links || []).some(function (l) { return l.rel === TILESETS_REL; });
+        });
+        if (!withTiles.length) { throw new Error('No collection advertises vector tilesets'); }
+        withTiles.forEach(function (c) {
+            var o = document.createElement('option');
+            o.value = c.id;
+            o.textContent = c.id;
+            collectionSel.appendChild(o);
+        });
+        return fetch(API + '/tileMatrixSets?f=json');
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (doc) {
+        // Every published scheme is offered; this page can draw any of them,
+        // including WebMercatorQuad, because the grid is read from the document.
+        return Promise.all((doc.tileMatrixSets || []).map(function (t) {
+            return fetch(API + '/tileMatrixSets/' + encodeURIComponent(t.id) + '?f=json')
+                .then(function (r) { return r.json(); })
+                .then(function (full) { tmsDocs[t.id] = full; return t.id; });
+        }));
+    })
+    .then(function (ids) {
+        ids.forEach(function (id) {
+            var o = document.createElement('option');
+            o.value = id;
+            o.textContent = id;
+            if (id === 'ETRS-TM35FIN') { o.selected = true; }
+            tmsSel.appendChild(o);
+        });
+        if (!ids.length) { throw new Error('No tile matrix sets published'); }
+        redraw();
+    })
+    .catch(function (err) { say(String(err.message || err), true); });
+
+function redraw() {
+    var doc = tmsDocs[tmsSel.value];
+    if (!doc) { return; }
+    // The view's projection has to match the scheme's CRS, so switching to
+    // WebMercatorQuad here would need a second view; keep this page to 3067 and
+    // say so rather than drawing something subtly wrong.
+    var srid = (doc.crs || '').split('/').pop();
+    if (srid !== '3067') {
+        if (currentLayer) { map.removeLayer(currentLayer); currentLayer = null; }
+        say('Tile matrix set ' + doc.id + ' is EPSG:' + srid + ', not 3067.\n' +
+            'This page renders EPSG:3067 only — use map.html for Web Mercator.', true);
+        return;
+    }
+    showLayer(doc);
+}
+
+collectionSel.addEventListener('change', redraw);
+tmsSel.addEventListener('change', redraw);
+</script>
+</body>
+</html>

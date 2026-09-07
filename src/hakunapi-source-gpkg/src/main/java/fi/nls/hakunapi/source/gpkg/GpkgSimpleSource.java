@@ -77,7 +77,7 @@ public class GpkgSimpleSource implements SimpleSource {
         return "gpkg";
     }
 
-    private DataSource getDataSource(HakunaConfigParser cfg, Path path, String name) throws SQLException {
+    protected DataSource getDataSource(HakunaConfigParser cfg, Path path, String name) throws SQLException {
         DataSource ds = dataSources.get(name);
         if (ds == null) {
             HikariDataSource hds = readDataSource(cfg, path, name);

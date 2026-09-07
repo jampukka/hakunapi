@@ -12,6 +12,8 @@ import fi.nls.hakunapi.core.ValueProvider;
 import fi.nls.hakunapi.core.geom.HakunaGeometry;
 import fi.nls.hakunapi.core.geom.HakunaGeometryJTS;
 import fi.nls.hakunapi.core.geom.HakunaGeometryType;
+import fi.nls.hakunapi.core.geom.WKBBacked;
+import fi.nls.hakunapi.core.projection.EWKBTransformer;
 import fi.nls.hakunapi.core.projection.JTSTransformer;
 import fi.nls.hakunapi.core.projection.ProjectionTransformer;
 import fi.nls.hakunapi.core.property.HakunaPropertyDynamic;
@@ -122,18 +124,35 @@ public class HakunaPropertyGeometry extends HakunaPropertyDynamic {
         }
         
         CoordinateSequenceFilter csq = new JTSTransformer(t);
+        // Reprojects the WKB coordinates in place, no JTS tree built and thrown
+        // away. Both hold per-query scratch state, so they are created here with
+        // the mapper rather than shared.
+        EWKBTransformer wkbt = new EWKBTransformer(t);
 
         return (vp, vc) -> {
             HakunaGeometry hg = vp.getHakunaGeometry(iValueProvider);
             if (hg == null) {
                 vc.setNull(iValueContainer);
-            } else {
-                Geometry g = hg.toJTSGeometry();
-                g.apply(csq);
-                g.setSRID(t.getToSRID());
-                hg = new HakunaGeometryJTS(g);
-                vc.setObject(iValueContainer, hg);
+                return;
             }
+            // The dimension is per geometry, read from the WKB itself: a source's
+            // declared dimension can be wider than the bytes actually are (a
+            // GeoPackage may advertise Z on a column of plain XY geometry), and one
+            // column may hold a mix.
+            if (hg instanceof WKBBacked wkb && wkb.getDimension() == 2) {
+                try {
+                    wkbt.transform(wkb);
+                } catch (Exception e) {
+                    throw new RuntimeException("Projection transform failed", e);
+                }
+                vc.setObject(iValueContainer, hg);
+                return;
+            }
+            // Z/M: transform through JTS.
+            Geometry g = hg.toJTSGeometry();
+            g.apply(csq);
+            g.setSRID(t.getToSRID());
+            vc.setObject(iValueContainer, new HakunaGeometryJTS(g));
         };
     }
 

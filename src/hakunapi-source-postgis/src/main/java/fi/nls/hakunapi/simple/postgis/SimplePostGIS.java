@@ -96,7 +96,12 @@ public class SimplePostGIS implements FeatureProducer {
             c.setAutoCommit(false);
             ps = c.prepareStatement(query);
             PostGISUtil.bind(c, ps, filters);
-            LOG.info("{}", ps.toString());
+            // Guarded because the argument is not free: the driver's toString
+            // renders the SQL with every bound value, the bbox filter's EWKB
+            // included, and it is built once per query whether or not it is logged.
+            if (LOG.isInfoEnabled()) {
+                LOG.info("{}", ps.toString());
+            }
             int bufSize = BATCH_SIZE;
             ps.setFetchSize(bufSize);
             rs = ps.executeQuery();
@@ -147,7 +152,9 @@ public class SimplePostGIS implements FeatureProducer {
         try (Connection c = ds.getConnection();
                 PreparedStatement ps = c.prepareStatement(query)) {
             PostGISUtil.bind(c, ps, filters);
-            LOG.debug(ps.toString());
+            if (LOG.isDebugEnabled()) {
+                LOG.debug(ps.toString());
+            }
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     return -1;

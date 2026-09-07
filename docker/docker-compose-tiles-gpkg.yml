@@ -1,0 +1,34 @@
+# OGC API - Tiles test bench over a GeoPackage source.
+#
+# No database service: the collection is a .gpkg file, so this is the whole
+# stack. 20.5 M LINESTRINGs of cadastral boundary in native EPSG:3067 make the
+# bench exercise two things the addresses bench does not - a non-PostGIS source
+# on the tile path, and line clipping instead of points that never clip.
+#
+# The .gpkg is not in the repo. Point GPKG_DIR at the directory holding
+# kiinteistorajat.gpkg:
+#
+#   GPKG_DIR=$HOME/data docker compose -f docker-compose-tiles-gpkg.yml up --build
+#
+# Then http://localhost:8080/features/tm35.html
+name: hakunapi-tiles-gpkg
+
+services:
+  hakunapi:
+    build:
+      context: ../.
+      dockerfile: Dockerfile.tiles-testbench
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "41468:41468"
+    volumes:
+      # The config's db= is relative to the directory containing it, so the
+      # properties file and the .gpkg are mounted into the same directory
+      # individually - ./cfg is read-only and the .gpkg does not live there.
+      - ./cfg/kiinteistorajat.properties:/app/config/kiinteistorajat.properties:ro
+      - ${GPKG_DIR:-/home/janne/data}/kiinteistorajat.gpkg:/app/config/kiinteistorajat.gpkg:ro
+    environment:
+      CATALINA_OPTS: >-
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:41468
+        -Dfeatures.hakuna.config.path=/app/config/kiinteistorajat.properties

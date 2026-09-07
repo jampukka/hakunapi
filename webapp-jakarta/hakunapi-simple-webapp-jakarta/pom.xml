@@ -116,5 +116,22 @@
         </plugins>
     </build>
 
+    <profiles>
+        <!--
+            Bundles the experimental HTTP Range GeoPackage source. Opt-in with
+            -Pgpkg-http and a JDK 22+ toolchain: the module uses the FFM API and
+            is not part of the supported reference webapp.
+        -->
+        <profile>
+            <id>gpkg-http</id>
+            <dependencies>
+                <dependency>
+                    <groupId>fi.nls.hakunapi</groupId>
+                    <artifactId>hakunapi-source-gpkg-http</artifactId>
+                    <version>${project.version}</version>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 
 </project>

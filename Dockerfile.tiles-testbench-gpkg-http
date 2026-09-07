@@ -1,0 +1,39 @@
+# Test bench image for OGC API - Tiles over a GeoPackage read by HTTP Range.
+#
+# Dockerfile.tiles-testbench builds the same bench war against a bind-mounted
+# .gpkg; this one swaps the source for hakunapi-source-gpkg-http, so the file
+# stays in object storage and the container never sees it. Two differences from
+# that image, both forced by the module:
+#
+#   - a JDK 22+ build stage, because the SQLite VFS is written against the FFM
+#     API, which is final in 22 (the bench Dockerfile builds on 21)
+#   - libsqlite3 at runtime, with SQLITE_ENABLE_RTREE. We link the platform's
+#     own rather than shipping one - not having to build a native artifact is
+#     the reason the FFM route was chosen over patching sqlite-jdbc.
+#
+# The runtime also needs --enable-native-access=ALL-UNNAMED; that is in the
+# compose file's CATALINA_OPTS, not here.
+#
+# Used by docker/docker-compose-tiles-mtk-http.yml.
+ARG TOMCAT_IMAGE=tomcat:10.1-jdk25-temurin
+
+FROM maven:3.9-eclipse-temurin-25-alpine AS build
+WORKDIR /build
+
+COPY . /build
+
+RUN --mount=type=cache,target=/root/.m2/repository \
+    mvn -DskipTests -Pgpkg-http -pl webapp-jakarta/hakunapi-tiles-testbench-jakarta -am clean package
+
+FROM ${TOMCAT_IMAGE}
+ENV CATALINA_OUT=/dev/stdout
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libsqlite3-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /build/webapp-jakarta/hakunapi-tiles-testbench-jakarta/target/*.war /usr/local/tomcat/webapps/features.war
+
+EXPOSE 8080
+
+CMD ["catalina.sh", "run"]

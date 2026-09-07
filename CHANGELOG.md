@@ -21,6 +21,8 @@ For a full list of changes see: https://github.com/nlsfi/hakunapi/milestone/17
 - Fixed broken maps on HTML feature pages: the proj4 and proj4leaflet CDN URLs pointed at files the packages do not publish, so jsDelivr generated them on the fly and their SRI hashes drifted.
 - Removed obsolete `.github/workflows/deploy.yml` CI workflow.
 - Documentation: added a table of selected dependencies to [docs/overview/modules.md](docs/overview/modules.md).
+- **`hakunapi-proj-jhe` correctness fixes.** Transforms with a GKnn (EPSG:3873-3885) source CRS derived the zone meridian from the *target* SRID, producing `NaN` for TM targets and silently wrong coordinates for EPSG:3857; `3857 -> 4326/4258` returned radians instead of degrees; and only the first coordinate pair of each geometry was transformed, so reprojected LineStrings and Polygons kept every vertex but the first in the source CRS. The transform cache is now a `ConcurrentHashMap` (it was a `HashMap` mutated per request).
+- **`hakunapi-proj-jhe` faster transforms.** Restructured into a pipeline of stages that transform a whole coordinate block, and replaced the iterative isometric-latitude inverse with a direct series and every term-by-term series sum with Clenshaw recursion. 2.0-3.4x depending on the CRS pair; output differs from before by at most 6 um, and agrees with PROJ 8.2.0 to 0.04 mm. The now-unused `EUREFFINTransform` interface was removed.
 
 ### Library updates
 

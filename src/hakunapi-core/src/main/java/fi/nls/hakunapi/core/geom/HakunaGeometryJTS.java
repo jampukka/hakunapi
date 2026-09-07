@@ -13,13 +13,14 @@ import org.locationtech.jts.geom.MultiPoint;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.impl.PackedCoordinateSequence;
 import org.locationtech.jts.io.WKBConstants;
 import org.locationtech.jts.io.WKBWriter;
 
 import fi.nls.hakunapi.core.GeometryWriter;
 import fi.nls.hakunapi.core.util.GeoPackageWKBWriter;
 
-public class HakunaGeometryJTS implements HakunaGeometry {
+public class HakunaGeometryJTS implements NavigableHakunaGeometry {
 
     private final Geometry geom;
     private int dimension;
@@ -255,6 +256,108 @@ public class HakunaGeometryJTS implements HakunaGeometry {
             }
         });
         return intptr[0];
+    }
+
+    // --- NavigableHakunaGeometry ----------------------------------------------
+    //
+    // The wrapped JTS Geometry is read directly. A MULTI* reports its members as
+    // parts; getGeometryN wraps each member. A simple geometry is its own single
+    // part. Ring access (getNumRings/getRingSize/copyRingXY) treats the wrapped
+    // geometry as one part: a Polygon exposes exterior(0)+holes, a LineString or
+    // Point a single ring.
+
+    @Override
+    public int getNumGeometries() {
+        return (geom instanceof GeometryCollection) ? geom.getNumGeometries() : 1;
+    }
+
+    @Override
+    public NavigableHakunaGeometry getGeometryN(int n) {
+        if (geom instanceof GeometryCollection) {
+            return new HakunaGeometryJTS(geom.getGeometryN(n));
+        }
+        return this; // simple geometry: its only part is itself
+    }
+
+    @Override
+    public int getNumRings() {
+        if (geom instanceof Polygon) {
+            return 1 + ((Polygon) geom).getNumInteriorRing();
+        }
+        return 1; // line or point part
+    }
+
+    private CoordinateSequence ringSeq(int r) {
+        if (geom instanceof Polygon) {
+            Polygon p = (Polygon) geom;
+            LineString ring = (r == 0) ? p.getExteriorRing() : p.getInteriorRingN(r - 1);
+            return ring.getCoordinateSequence();
+        }
+        if (geom instanceof LineString) {
+            return ((LineString) geom).getCoordinateSequence();
+        }
+        if (geom instanceof Point) {
+            return ((Point) geom).getCoordinateSequence();
+        }
+        throw new IllegalStateException("not a part geometry: " + geom.getGeometryType());
+    }
+
+    @Override
+    public int getRingSize(int r) {
+        return ringSeq(r).size();
+    }
+
+    @Override
+    public void copyRingXY(int r, double[] dst, int dstOff, int from, int count) {
+        CoordinateSequence cs = ringSeq(r);
+        // Hakunapi parses every geometry into PackedCoordinateSequence.Double
+        // (see HakunaCoordinateSequenceFactory), whose backing is one double[]
+        // with x,y[,z,m] interleaved at a fixed stride. Read it directly: a
+        // strided array loop, no per-vertex getX/getY virtual dispatch and no
+        // Coordinate objects.
+        if (cs instanceof PackedCoordinateSequence.Double) {
+            PackedCoordinateSequence.Double pcs = (PackedCoordinateSequence.Double) cs;
+            double[] raw = pcs.getRawCoordinates();
+            int stride = pcs.getDimension();
+            int src = from * stride;
+            int o = dstOff;
+            for (int i = 0; i < count; i++) {
+                dst[o++] = raw[src];
+                dst[o++] = raw[src + 1];
+                src += stride;
+            }
+            return;
+        }
+        int o = dstOff;
+        int end = from + count;
+        for (int i = from; i < end; i++) {
+            dst[o++] = cs.getX(i);
+            dst[o++] = cs.getY(i);
+        }
+    }
+
+    @Override
+    public void copyRingXY(int r, float[] dst, int dstOff, int from, int count, XYToFloat fn) {
+        CoordinateSequence cs = ringSeq(r);
+        if (cs instanceof PackedCoordinateSequence.Double) {
+            PackedCoordinateSequence.Double pcs = (PackedCoordinateSequence.Double) cs;
+            double[] raw = pcs.getRawCoordinates();
+            int stride = pcs.getDimension();
+            int src = from * stride;
+            int o = dstOff;
+            for (int i = 0; i < count; i++) {
+                fn.apply(raw[src], raw[src + 1], dst, o);
+                o += 2;
+                src += stride;
+            }
+            return;
+        }
+        int o = dstOff;
+        int end = from + count;
+        for (int i = from; i < end; i++) {
+            fn.apply(cs.getX(i), cs.getY(i), dst, o);
+            o += 2;
+        }
     }
 
     private static int numMeasures(Geometry g) {

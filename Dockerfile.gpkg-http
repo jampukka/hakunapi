@@ -1,0 +1,31 @@
+# Image for the experimental HTTP Range GeoPackage source.
+#
+# Differs from the reference image (Dockerfile) in two ways: a JDK 22+ build
+# because hakunapi-source-gpkg-http implements a SQLite VFS with the FFM API,
+# and the gpkg-http profile so the module is compiled and bundled into the war.
+#
+# The runtime needs libsqlite3 with SQLITE_ENABLE_RTREE. We link the platform's
+# own rather than shipping one - not having to build a native artifact is the
+# reason the FFM route was chosen over patching sqlite-jdbc.
+ARG TOMCAT_IMAGE=tomcat:10.1-jdk25-temurin
+
+FROM maven:3.9-eclipse-temurin-25-alpine AS build
+WORKDIR /build
+
+COPY . /build
+
+RUN --mount=type=cache,target=/root/.m2/repository \
+    mvn -DskipTests -Pgpkg-http -pl webapp-jakarta/hakunapi-simple-webapp-jakarta -am clean package
+
+FROM ${TOMCAT_IMAGE}
+ENV CATALINA_OUT=/dev/stdout
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libsqlite3-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /build/webapp-jakarta/hakunapi-simple-webapp-jakarta/target/*.war /usr/local/tomcat/webapps/features.war
+
+EXPOSE 8080
+
+CMD ["catalina.sh", "run"]

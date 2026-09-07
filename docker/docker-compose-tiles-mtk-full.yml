@@ -1,0 +1,34 @@
+# OGC API - Tiles over the NLS topographic database (Maastotietokanta).
+#
+# All 121 MTK collections in one dataset tile.
+# No database service: the collections are tables in one .gpkg, so this is the
+# whole stack. The dataset tileset at /tiles carries one MVT layer per
+# collection - the shape a vector tile style consumes.
+#
+# The .gpkg is not in the repo (49 GB). Point GPKG_DIR at the directory holding
+# mtkmaasto.gpkg:
+#
+#   GPKG_DIR=$HOME/data docker compose -f docker-compose-tiles-mtk-full.yml up --build
+#
+# Then http://localhost:8080/features/mtk.html
+name: hakunapi-tiles-mtk-full
+
+services:
+  hakunapi:
+    build:
+      context: ../.
+      dockerfile: Dockerfile.tiles-testbench
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "41468:41468"
+    volumes:
+      # The config's db= is relative to the directory containing it, so the
+      # properties file and the .gpkg are mounted into the same directory
+      # individually - ./cfg is read-only and the .gpkg does not live there.
+      - ./cfg/mtkmaasto.properties:/app/config/mtkmaasto.properties:ro
+      - ${GPKG_DIR:-/home/janne/data}/mtkmaasto.gpkg:/app/config/mtkmaasto.gpkg:ro
+    environment:
+      CATALINA_OPTS: >-
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:41468
+        -Dfeatures.hakuna.config.path=/app/config/mtkmaasto.properties

@@ -2,19 +2,18 @@ package fi.nls.hakunapi.source.gpkg;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.io.WKBReader;
 
 import fi.nls.hakunapi.core.GeometryWriter;
-import fi.nls.hakunapi.core.geom.HakunaGeometry;
+import fi.nls.hakunapi.core.geom.WKBBacked;
 import fi.nls.hakunapi.core.geom.HakunaGeometryJTS;
 import fi.nls.hakunapi.core.geom.HakunaGeometryType;
 import fi.nls.hakunapi.gpkg.GPKGGeometry;
 
-public class HakunaGeometryGPKG implements HakunaGeometry {
+public class HakunaGeometryGPKG implements WKBBacked {
 
     public final ByteBuffer bb;
     public final int wkbOffset;
@@ -160,9 +159,14 @@ public class HakunaGeometryGPKG implements HakunaGeometry {
 
     @Override
     public Geometry toJTSGeometry() {
+        // TODO: Optimize me
         try {
-            byte[] blob = bb.array();
-            byte[] wkb = Arrays.copyOfRange(blob, wkbOffset, blob.length);
+            // Read through the buffer rather than its backing array: the buffer
+            // may be a direct one over SQLite's own memory, which has none.
+            ByteBuffer wkbBuf = bb.duplicate();
+            wkbBuf.position(wkbOffset);
+            byte[] wkb = new byte[wkbBuf.remaining()];
+            wkbBuf.get(wkb);
             return new WKBReader().read(wkb);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -264,6 +268,26 @@ public class HakunaGeometryGPKG implements HakunaGeometry {
         return type;
     }
 
+    // WKBBacked: a GeoPackage blob's body is plain WKB past the envelope, so
+    // NavigableEWKB can walk it in place. Without this the tile path would take
+    // HakunaGeometry's default toNavigable() and build a JTS object tree per
+    // feature just to read the coordinates back out.
+
+    @Override
+    public ByteBuffer getBuffer() {
+        return bb;
+    }
+
+    @Override
+    public int getDataStart() {
+        return dataStart;
+    }
+
+    @Override
+    public int getGeometryType() {
+        return type;
+    }
+
     @Override
     public int getDimension() {
         return dimension;
@@ -271,12 +295,19 @@ public class HakunaGeometryGPKG implements HakunaGeometry {
 
     @Override
     public int getWKBLength() {
-        return bb.array().length - wkbOffset;
+        return bb.limit() - wkbOffset;
     }
 
+    /**
+     * The WKB starts at {@link #wkbOffset} - byte order flag, type, then body -
+     * which is what {@link #getWKBLength()} measures; {@code dataStart} is past
+     * those two and is where a coordinate reader begins instead.
+     */
     @Override
     public void toWKB(byte[] wkb, int off) {
-        System.arraycopy(bb.array(), dataStart, wkb, off, bb.array().length - dataStart);
+        ByteBuffer src = bb.duplicate();
+        src.position(wkbOffset);
+        src.get(wkb, off, src.remaining());
     }
 
 }

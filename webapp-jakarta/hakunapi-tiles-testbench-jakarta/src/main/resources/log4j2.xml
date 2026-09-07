@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Overrides the reference webapp's log4j2.xml, which this war inherits through
+    the hakunapi-simple-webapp-jakarta classes dependency.
+
+    The difference is the sources that log every prepared statement at INFO.
+    A vector tile is one query per collection - 31 of them for MTK - and panning
+    the map fires a dozen tiles at a time, each query a multi-kilobyte SQL string
+    with an EWKB literal in it. Writing that to the console is slow enough to
+    stall the tile responses. Raise the one you need to DEBUG when a tile's SQL
+    is what you are actually looking at.
+
+    BlockCacheRangeReader is here for the opposite reason: its progress line is
+    the number to watch when reading over HTTP, so it stays at INFO.
+-->
+<Configuration status="INFO">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n" />
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Logger name="fi.nls.hakunapi.simple.postgis.SimplePostGIS" level="WARN" />
+        <Logger name="fi.nls.hakunapi.source.gpkg.GpkgSimpleFeatureProducer" level="WARN" />
+        <Logger name="fi.nls.hakunapi.source.gpkg.GpkgSimpleSource" level="WARN" />
+        <Root level="INFO">
+            <AppenderRef ref="Console" />
+        </Root>
+    </Loggers>
+</Configuration>

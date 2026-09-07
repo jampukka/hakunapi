@@ -14,5 +14,11 @@
 		<module>hakunapi-proj-jhe</module>
 		<module>hakunapi-smile</module>
 		<module>hakunapi-esbulk</module>
+		<module>hakunapi-tiles-core</module>
+		<module>hakunapi-tiles-source-vectortile</module>
+		<module>hakunapi-tiles-source-wmts</module>
+		<module>hakunapi-tiles-source-gpkg</module>
+		<module>hakunapi-tiles-source-pmtiles</module>
+		<module>hakunapi-tiles-servlet-jakarta</module>
 	</modules>
 </project>

@@ -40,5 +40,15 @@ public interface HakunaGeometry {
     public default Envelope boundedBy() {
         return new HakunaGeometryEWKB(toEWKB()).boundedBy();
     }
-    
+
+    /**
+     * A random-access view over this geometry's structure for direct coordinate
+     * walking (see {@link NavigableHakunaGeometry}). Backings that are already
+     * random-access return {@code this} or a cheap wrapper; the default
+     * materializes via JTS, so every backing has at least a slow path.
+     */
+    public default NavigableHakunaGeometry toNavigable() {
+        return new HakunaGeometryJTS(toJTSGeometry()).toNavigable();
+    }
+
 }

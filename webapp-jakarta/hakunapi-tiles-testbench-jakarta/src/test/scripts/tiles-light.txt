@@ -1,0 +1,6 @@
+# Sub-300ms tiles: the iteration loop for warm-tiles.sh.
+ETRS-TM35FIN/8/209/113
+ETRS-TM35FIN/10/838/455
+ETRS-TM35FIN/12/3352/1823
+ETRS-TM35FIN/13/6705/3646
+WebMercatorQuad/14/4742/9326

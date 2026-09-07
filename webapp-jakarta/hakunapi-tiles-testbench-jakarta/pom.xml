@@ -1,0 +1,115 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>fi.nls.hakunapi</groupId>
+        <artifactId>webapp-jakarta</artifactId>
+        <version>2.0.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>hakunapi-tiles-testbench-jakarta</artifactId>
+    <packaging>war</packaging>
+
+    <name>hakunapi OGC API - Tiles test bench</name>
+    <description>
+        The reference webapp plus the OGC API - Tiles community modules, for
+        exercising tiles by hand against the docker dev environment. Not a
+        deliverable: tiles is a community module and stays out of
+        hakunapi-simple-webapp-jakarta.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Everything the reference webapp serves. classes classifier, because
+             its war is not a usable dependency. -->
+        <dependency>
+            <groupId>fi.nls.hakunapi</groupId>
+            <artifactId>hakunapi-simple-webapp-jakarta</artifactId>
+            <classifier>classes</classifier>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- ...and its transitive dependencies, which the classes artifact does
+             not carry. -->
+        <dependency>
+            <groupId>fi.nls.hakunapi</groupId>
+            <artifactId>hakunapi-simple-webapp-jakarta</artifactId>
+            <type>war</type>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- Both projection implementations, so a collection picks one by its
+             configured proj factory rather than by what the war happens to
+             carry: proj-jhe for the CRSs it implements natively (EPSG:3067,
+             4258, 3857), proj-gt for everything else. GeoTools brings the
+             referencing stack and an hsqldb EPSG database - measured at
+             8.5k -> 11k loaded classes - which is why it was once excluded here;
+             not a concern on the current bench machine. -->
+        <dependency>
+            <groupId>fi.nls.hakunapi</groupId>
+            <artifactId>hakunapi-proj-jhe</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- OGC API - Tiles: the servlet layer plus the in-JVM MVT generator,
+             which is what the bench is for. -->
+        <dependency>
+            <groupId>fi.nls.hakunapi</groupId>
+            <artifactId>hakunapi-tiles-servlet-jakarta</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>fi.nls.hakunapi</groupId>
+            <artifactId>hakunapi-tiles-source-vectortile</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>features</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <configuration>
+                    <!-- Overlay the reference webapp's war so its static
+                         resources (HTML templates, assets) are served here too.
+                         Its web.xml is skipped: ours is authoritative. -->
+                    <overlays>
+                        <overlay>
+                            <groupId>fi.nls.hakunapi</groupId>
+                            <artifactId>hakunapi-simple-webapp-jakarta</artifactId>
+                            <excludes>
+                                <exclude>WEB-INF/web.xml</exclude>
+                            </excludes>
+                        </overlay>
+                    </overlays>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!--
+            Reads the GeoPackage over HTTP Range instead of from a bind mount.
+            Opt-in with -Pgpkg-http and a JDK 22+ toolchain, exactly as in the
+            reference webapp: hakunapi-source-gpkg-http implements a SQLite VFS
+            with the FFM API and does not compile on the 21 CI builds on.
+            Used by Dockerfile.tiles-testbench-gpkg-http.
+        -->
+        <profile>
+            <id>gpkg-http</id>
+            <dependencies>
+                <dependency>
+                    <groupId>fi.nls.hakunapi</groupId>
+                    <artifactId>hakunapi-source-gpkg-http</artifactId>
+                    <version>${project.version}</version>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+
+</project>

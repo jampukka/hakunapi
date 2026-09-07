@@ -17,7 +17,7 @@ public class CollectionInfo extends ExtendableComponent {
     private final String description;
     private final List<Link> links;
     private final Extent extent;
-    private final String itemType = "feature";
+    private String itemType = "feature";
     private final String[] crs;
     private final String storageCrs;
 
@@ -91,6 +91,14 @@ public class CollectionInfo extends ExtendableComponent {
 
     public String getItemType() {
         return itemType;
+    }
+
+    /**
+     * Override the collection {@code itemType} (default {@code "feature"}). Used to
+     * mark a map (raster) tile collection as {@code "map"} per OGC API - Maps.
+     */
+    public void setItemType(String itemType) {
+        this.itemType = itemType;
     }
 
     public String[] getCrs() {

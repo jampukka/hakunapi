@@ -60,7 +60,7 @@
 <#if additionalLinks?size gt 0>
     <h2>Additional Resources</h2>
 <#list additionalLinks as link>
-    <p><a href="${link.href}" target="_blank">${link.title}</a></p>
+    <p><a href="${link.href}" target="_blank">${link.title!link.href}</a></p>
 </#list>
 </#if>
 

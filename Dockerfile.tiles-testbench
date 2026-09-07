@@ -1,0 +1,30 @@
+# Test bench image for the OGC API - Tiles community modules.
+#
+# The reference image (Dockerfile) builds hakunapi-simple-webapp-jakarta, which
+# deliberately does not bundle tiles. This one builds the bench war instead:
+# the same API plus the tiles modules and a MapLibre page for looking at the
+# rendered tiles. Used by docker/docker-compose-tiles.yml.
+#
+# Runtime JDK, overridable so the bench can measure one: the tile path
+# allocates short-lived buffers per feature, so its latency tail moves a lot
+# between JDK releases. 21 is what maven.compiler.release targets; a newer JDK
+# runs that bytecode unchanged.
+#   --build-arg TOMCAT_IMAGE=tomcat:10.1-jdk21-temurin
+ARG TOMCAT_IMAGE=tomcat:10.1-jdk25-temurin
+
+FROM maven:3.9.6-eclipse-temurin-21-alpine AS build
+WORKDIR /build
+
+COPY . /build
+
+RUN --mount=type=cache,target=/root/.m2/repository \
+    mvn -DskipTests -pl webapp-jakarta/hakunapi-tiles-testbench-jakarta -am clean package
+
+FROM ${TOMCAT_IMAGE}
+ENV CATALINA_OUT=/dev/stdout
+
+COPY --from=build /build/webapp-jakarta/hakunapi-tiles-testbench-jakarta/target/*.war /usr/local/tomcat/webapps/features.war
+
+EXPOSE 8080
+
+CMD ["catalina.sh", "run"]

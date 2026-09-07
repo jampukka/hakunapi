@@ -15,6 +15,7 @@ import jakarta.ws.rs.core.UriInfo;
 
 import fi.nls.hakunapi.core.FeatureType;
 import fi.nls.hakunapi.core.FeatureServiceConfig;
+import fi.nls.hakunapi.core.extension.ApiExtension;
 import fi.nls.hakunapi.core.schemas.CollectionInfo;
 import fi.nls.hakunapi.html.model.HTMLContext;
 
@@ -31,12 +32,18 @@ public class CollectionMetadataImpl {
             @PathParam("collectionId") String collectionId,
             @Context UriInfo uriInfo,
             @Context HttpHeaders headers) {
-        FeatureType ft = service.getCollection(collectionId);
-        if (ft == null) {
-            throw new NotFoundException("Unknown collection");
-        }
         Map<String, String> queryParams = OperationUtil.getQueryParams(service, uriInfo);
-        return CollectionMetadataUtil.toCollectionInfo(headers, service, ft, queryParams);
+        FeatureType ft = service.getCollection(collectionId);
+        if (ft != null) {
+            return CollectionMetadataUtil.toCollectionInfo(headers, service, ft, queryParams);
+        }
+        // A collection published by an extension has no feature collection
+        // behind it (an OGC API - Tiles map tile layer, say).
+        CollectionInfo extra = findExtraCollection(headers, collectionId, queryParams);
+        if (extra != null) {
+            return extra;
+        }
+        throw new NotFoundException("Unknown collection");
     }
     
     @GET
@@ -48,6 +55,24 @@ public class CollectionMetadataImpl {
             @Context HttpHeaders headers) {
         String basePath = service.getCurrentServerURL(headers::getHeaderString);
         return new HTMLContext<>(service, basePath, handle(collectionId, uriInfo, headers));
+    }
+
+    /**
+     * The extension-published collection with this id, or null if no extension
+     * publishes one. Extensions are few and this is metadata, so a linear scan
+     * is cheaper than an index that would have to be kept in step.
+     */
+    private CollectionInfo findExtraCollection(HttpHeaders headers, String collectionId,
+            Map<String, String> queryParams) {
+        String baseUrl = service.getCurrentServerURL(headers::getHeaderString);
+        for (ApiExtension extension : service.getApiExtensions()) {
+            for (CollectionInfo info : extension.getCollections(baseUrl, queryParams)) {
+                if (collectionId.equals(info.getId())) {
+                    return info;
+                }
+            }
+        }
+        return null;
     }
 
 }

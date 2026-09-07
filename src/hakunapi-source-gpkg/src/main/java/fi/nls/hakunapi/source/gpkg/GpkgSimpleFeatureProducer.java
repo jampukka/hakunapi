@@ -22,13 +22,15 @@ import fi.nls.hakunapi.core.util.EmptyFeatureStream;
 import fi.nls.hakunapi.core.util.U;
 
 /**
- * Streaming implementation
- * Reads a batch of BATCH_SIZE rows at a time
+ * Streaming implementation.
+ *
+ * <p>Rows are read one at a time: SQLite is in-process, so there are no round
+ * trips for a batch to amortise, and sqlite-jdbc's {@code setFetchSize} does no
+ * prefetching. See {@link ResultSetFeatureStream}.
  */
 public class GpkgSimpleFeatureProducer implements FeatureProducer {
 
     private static final Logger LOG = LoggerFactory.getLogger(GpkgSimpleFeatureProducer.class);
-    private static final int BATCH_SIZE = 250;
 
     @Override
     public FeatureStream getFeatures(GetFeatureRequest request, GetFeatureCollection col) throws Exception {
@@ -64,12 +66,15 @@ public class GpkgSimpleFeatureProducer implements FeatureProducer {
             c.setAutoCommit(false);
             ps = c.prepareStatement(query);
             GpkgQueryUtil.bind(c, ps, filters);
-            LOG.info("{}", ps.toString());
-            int bufSize = BATCH_SIZE;
-            ps.setFetchSize(bufSize);
+            // Guarded because the argument is not free: the driver's toString
+            // renders the SQL with every bound value, the bbox filter's EWKB
+            // included, and a dataset tile runs one query per collection.
+            if (LOG.isInfoEnabled()) {
+                LOG.info("{}", ps.toString());
+            }
             rs = ps.executeQuery();
             int numColsRs = rs.getMetaData().getColumnCount();
-            return new BufferedResultSet(c, ps, rs, numColsRs, mappers, bufSize);
+            return new ResultSetFeatureStream(c, ps, rs, numColsRs, mappers);
         } catch (Exception e) {
             U.closeSilent(rs);
             U.closeSilent(ps);
@@ -98,7 +103,9 @@ public class GpkgSimpleFeatureProducer implements FeatureProducer {
         try (Connection c = ft.getDatabase().getConnection();
                 PreparedStatement ps = c.prepareStatement(query)) {
             GpkgQueryUtil.bind(c, ps, filters);
-            LOG.debug(ps.toString());
+            if (LOG.isDebugEnabled()) {
+                LOG.debug(ps.toString());
+            }
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     return -1;

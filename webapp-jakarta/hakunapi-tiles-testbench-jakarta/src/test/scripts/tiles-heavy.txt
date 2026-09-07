@@ -1,0 +1,3 @@
+# The multi-second dataset tiles, 17.6 MB and 10.4 MB. Worst case, run rarely.
+ETRS-TM35FIN/6/52/28
+WebMercatorQuad/10/296/582

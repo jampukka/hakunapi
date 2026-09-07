@@ -1,0 +1,43 @@
+# The tiles test bench on JDK 26, for measuring what the runtime is worth.
+#
+# There is no tomcat:*-jdk26-* image yet, so Tomcat is unpacked onto
+# eclipse-temurin:26-jdk by hand. Everything else matches
+# Dockerfile.tiles-testbench, whose TOMCAT_IMAGE arg covers 21 and 25.
+#
+#   docker compose -f docker/docker-compose-tiles-gpkg.yml build \
+#       --build-arg DOCKERFILE=Dockerfile.tiles-testbench-jdk26
+#
+# Delete this file once an official image exists.
+FROM maven:3.9.6-eclipse-temurin-21-alpine AS build
+WORKDIR /build
+
+COPY . /build
+
+RUN --mount=type=cache,target=/root/.m2/repository \
+    mvn -DskipTests -pl webapp-jakarta/hakunapi-tiles-testbench-jakarta -am clean package
+
+FROM eclipse-temurin:26-jdk
+
+# Same Tomcat the official images use for the 10.1 line, so the only variable
+# between this bench and the others is the JDK.
+ARG TOMCAT_VERSION=10.1.59
+ENV CATALINA_HOME=/usr/local/tomcat
+ENV PATH=$CATALINA_HOME/bin:$PATH
+ENV CATALINA_OUT=/dev/stdout
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl; \
+    rm -rf /var/lib/apt/lists/*; \
+    mkdir -p "$CATALINA_HOME"; \
+    curl -fsSL "https://archive.apache.org/dist/tomcat/tomcat-10/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz" \
+        | tar -xz --strip-components=1 -C "$CATALINA_HOME"; \
+    rm -rf "$CATALINA_HOME"/webapps/*
+
+WORKDIR $CATALINA_HOME
+
+COPY --from=build /build/webapp-jakarta/hakunapi-tiles-testbench-jakarta/target/*.war /usr/local/tomcat/webapps/features.war
+
+EXPOSE 8080
+
+CMD ["catalina.sh", "run"]

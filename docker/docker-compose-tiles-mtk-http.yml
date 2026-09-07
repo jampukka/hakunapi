@@ -1,0 +1,66 @@
+# OGC API - Tiles over Maastotietokanta read by HTTP Range: a 49 GB GeoPackage
+# served as vector tiles without the file being anywhere near the tile server.
+#
+# This is docker-compose-tiles-mtk.yml with the bind mount taken away. The
+# .gpkg is mounted into nginx only; hakunapi gets a URL, and SQLite pulls the
+# pages it needs through a VFS implemented in Java. Same 31 collections, same
+# MapLibre pages, same tile matrix sets - only the source differs, which is what
+# makes the two benches comparable.
+#
+# The interesting part is that a vector tile is a different access pattern from
+# the single bbox query the HTTP source was measured against: one tile runs 31
+# spatial queries, so whatever a round trip costs is paid 31 times over.
+#
+# The .gpkg is not in the repo (49 GB). Point GPKG_DIR at the directory holding
+# mtkmaasto.gpkg:
+#
+#   GPKG_DIR=$HOME/data docker compose -f docker-compose-tiles-mtk-http.yml up --build
+#
+# Then http://localhost:8080/features/mtk.html (WebMercatorQuad) or
+# http://localhost:8080/features/mtk-tm35.html (native ETRS-TM35FIN).
+#
+# Port 8080 is shared with docker-compose-tiles-mtk.yml and
+# docker-compose-gpkg-http.yml, so only one of the three runs at a time.
+name: hakunapi-tiles-mtk-http
+
+services:
+  storage:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ${GPKG_DIR:-/home/janne/data}/mtkmaasto.gpkg:/usr/share/nginx/html/mtkmaasto.gpkg:ro
+      # The logging variant: the Range request count and bytes per tile are the
+      # numbers this bench is for, and they are only visible here.
+      - ./cfg/nginx-range-log.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      # Exposed so the same Range requests can be tried from the host with curl
+      - "8081:80"
+    healthcheck:
+      # A HEAD, which is enough to prove the file is served without streaming
+      # 49 GB. Neither wget form works here: --spider still issues a GET, and
+      # busybox wget treats a 206 as an error.
+      test: [ "CMD-SHELL", "nc -z localhost 80 && wget -q -O /dev/null --header='Range: bytes=0-0' http://localhost/mtkmaasto.gpkg 2>&1 | grep -q '206 Partial Content'" ]
+      interval: 5s
+      retries: 5
+      timeout: 5s
+
+  hakunapi:
+    build:
+      context: ../.
+      dockerfile: Dockerfile.tiles-testbench-gpkg-http
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "41468:41468"
+    volumes:
+      # Only the config: the data is remote, which is the point. Note there is
+      # no .gpkg mount here, unlike docker-compose-tiles-mtk.yml.
+      - ./cfg/mtkmaasto-http.properties:/app/config/mtkmaasto-http.properties:ro
+    environment:
+      CATALINA_OPTS: >-
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:41468
+        -Dfeatures.hakuna.config.path=/app/config/mtkmaasto-http.properties
+        --enable-native-access=ALL-UNNAMED
+    depends_on:
+      storage:
+        condition: service_healthy

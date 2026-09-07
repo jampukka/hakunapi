@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hakunapi tiles test bench — MTK on MapLibre</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+    html, body { margin: 0; height: 100%; }
+    #map { position: absolute; inset: 0; background: #fff; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+// The style ships an absolute tile source URL; point it at wherever this page is
+// actually served from, so the same file works against any deployment.
+var API = location.origin + location.pathname.replace(/\/[^/]*$/, '');
+
+// WebMercatorQuad, so these are Web Mercator levels - not the TM35FIN numbers
+// mtk-tm35.html uses. Matching that page's 1 m/px ceiling: WMQuad z14 is
+// ~1.9 m/px, coarser than 1 m, so the ceiling is one level deeper at z15.
+// (Web Mercator resolution is quoted at the equator and scales by
+// cos(latitude), so at 62N these are finer still - the match is approximate,
+// and erring on the fine side is the right way round.)
+var MIN_TILE_ZOOM = 6;
+var MAX_TILE_ZOOM = 15;
+var MIN_ZOOM = 6;
+var MAX_ZOOM = 20;
+var HOME_ZOOM = 13;
+
+fetch('mtk-style.json')
+    .then(function (r) { return r.json(); })
+    .then(function (style) {
+        // The server's TileJSON declares minzoom 0 / maxzoom 24, which is the
+        // grid's range rather than a sensible request range: at z0 one tile is
+        // the whole world and still runs 31 queries over all of Finland, and
+        // past MAX_TILE_ZOOM every level re-queries for geometry already sent.
+        // Stated here so MapLibre overzooms the deepest fetched tile instead.
+        style.sources.taustakartta = {
+            type: 'vector',
+            url: API + '/tiles/WebMercatorQuad/tilejson.json',
+            minzoom: MIN_TILE_ZOOM,
+            maxzoom: MAX_TILE_ZOOM
+        };
+        var map = new maplibregl.Map({
+            container: 'map',
+            style: style,
+            center: style.center,
+            zoom: HOME_ZOOM,
+            minZoom: MIN_ZOOM,
+            maxZoom: MAX_ZOOM,
+            hash: true
+        });
+        map.addControl(new maplibregl.NavigationControl());
+        map.addControl(new maplibregl.ScaleControl());
+        // Errors go to the console rather than over the map: a vector tile style
+        // this size always has something to say, and none of it belongs on top
+        // of the thing being looked at.
+        map.on('error', function (e) {
+            console.warn('maplibre:', (e.error && e.error.message) || e.type, e);
+        });
+    })
+    .catch(function (e) { console.error('style load failed:', e); });
+</script>
+</body>
+</html>

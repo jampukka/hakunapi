@@ -25,4 +25,22 @@
 		<module>hakunapi-source-gpkg</module>
 		<module>hakunapi-crs-properties</module>
 	</modules>
+
+	<profiles>
+		<!--
+			hakunapi-source-gpkg-http implements a SQLite VFS with the FFM API,
+			which is final in Java 22. CI builds on 21 and 25, so the module is
+			built only where it compiles rather than raising the baseline for
+			everything else.
+		-->
+		<profile>
+			<id>gpkg-http</id>
+			<activation>
+				<jdk>[22,)</jdk>
+			</activation>
+			<modules>
+				<module>hakunapi-source-gpkg-http</module>
+			</modules>
+		</profile>
+	</profiles>
 </project>

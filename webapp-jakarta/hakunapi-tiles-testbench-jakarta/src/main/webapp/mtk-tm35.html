@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hakunapi tiles test bench — MTK on ETRS-TM35FIN</title>
+<link rel="stylesheet" href="https://unpkg.com/ol@10.2.1/ol.css">
+<style>
+    html, body { margin: 0; height: 100%; font: 13px/1.5 system-ui, sans-serif; }
+    #map { position: absolute; inset: 0; background: #fff; }
+    .ol-zoom { left: auto; right: 8px; }
+    #readout {
+        position: absolute; bottom: 10px; left: 10px; z-index: 1;
+        background: rgba(255,255,255,.95); padding: 8px 10px; border-radius: 6px;
+        box-shadow: 0 1px 6px rgba(0,0,0,.3); max-width: 380px;
+        font-family: ui-monospace, monospace; font-size: 11px; white-space: pre-wrap;
+    }
+    .err { color: #b00; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="readout">loading…</div>
+
+<script src="https://unpkg.com/proj4@2.12.1/dist/proj4.js"></script>
+<script src="https://unpkg.com/ol@10.2.1/dist/ol.js"></script>
+<script src="https://unpkg.com/ol-mapbox-style@12.3.5/dist/olms.js"></script>
+<script>
+// The same MTK style as mtk.html, but drawn on the native EPSG:3067 tiling
+// scheme instead of WebMercatorQuad, so the two pages differ only in the tile
+// matrix set. That makes them a like-for-like comparison of the reprojecting
+// tile path against the one that serves the GeoPackage's own CRS.
+//
+// mtk.html can hand the whole style to olms.apply because TileJSON carries the
+// grid and TileJSON means Web Mercator. A projected scheme has no such
+// document, so this page builds the grid from /tileMatrixSets/{id} - the same
+// way tm35.html does - and applies only the style's layers on top of it.
+var API = location.origin + location.pathname.replace(/\/[^/]*$/, '');
+
+var readoutEl = document.getElementById('readout');
+
+// The box reports failures only - the view itself is in the URL - so it starts
+// as "loading..." and is hidden once there is nothing left to say.
+function say(msg, isErr) {
+    readoutEl.textContent = msg;
+    readoutEl.className = isErr ? 'err' : '';
+    readoutEl.style.display = msg ? '' : 'none';
+}
+
+// EPSG:3067 is not one of OpenLayers' built-in projections, and ol.format.MVT
+// reads a tile in a synthetic 'tile-pixels' projection that it then transforms
+// into map units - so the target CRS has to be properly registered for anything
+// to land in the right place.
+//
+// No axisOrientation: TM35FIN is projected (east, north), so coordinates are
+// plain x,y. Declaring 'neu' would make OpenLayers swap them.
+proj4.defs('EPSG:3067',
+    '+proj=utm +zone=35 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+ol.proj.proj4.register(proj4);
+
+var TM35FIN_EXTENT = [-548576, 6291456, 1548576, 8388608];
+var proj3067 = ol.proj.get('EPSG:3067');
+proj3067.setExtent(TM35FIN_EXTENT);
+
+var TMS_ID = 'ETRS-TM35FIN';
+// The style's own center/zoom do not carry over: its center is lon/lat, and its
+// zoom is a Web Mercator level, where TM35FIN level N is a different scale
+// entirely.
+var HOME = [385000, 6672000];
+// Mid-window: z14 is the midpoint of MIN_ZOOM..MAX_ZOOM, but that is already
+// oversampled territory - z12 (2 m/px) opens on real tiles with room both ways.
+var HOME_ZOOM = 12;
+
+// The view's zoom window, and the level past which no tiles are requested.
+//
+// MTK is a 1:5000-1:10000 dataset. In this tile matrix set z0 is 8192 m/px and
+// each level halves it, so z13 is 1 m/px - already finer than the source data
+// justifies, and every level beyond it would re-query 31 collections to draw
+// the same geometry. So tiles stop at z13 and OpenLayers oversamples them for
+// z14-z19: an MVT carries 4096 extent units across a 256 px tile, i.e. 1/16 px
+// of coordinate precision at the tile's own level, so a z13 tile still has
+// ~6 cm of detail to give and scales up without going blocky.
+//
+// The near end is capped for the client, not the server: at 16 m/px (z9) a
+// screenful of MTK is enough geometry to stall the browser's renderer, and
+// thinning by zoom is out of scope here - the tiles carry every feature at
+// every level. z10 (8 m/px) is the widest view that stays interactive.
+var MIN_ZOOM = 10;
+var MAX_ZOOM = 19;
+var MAX_TILE_ZOOM = 13;
+
+// A caveat worth knowing when comparing this page against mtk.html: the style
+// carries ~95 zoom-interpolated paint expressions (line widths, text sizes),
+// and those interpolate over the *view's* zoom number. Since TM35FIN level N is
+// not Web Mercator level N, line weights and label sizes here do not match
+// mtk.html at the same ground scale. Geometry, layer content and tile
+// boundaries do - which is what this bench is for.
+
+/**
+ * The URL hash carries the view as #zoom/easting/northing, so a link reopens
+ * where the sender left off. MapLibre's own hash option uses lon/lat; this page
+ * is metric EPSG:3067 throughout, so the hash is too - metre precision is
+ * plenty and keeps the fragment short.
+ */
+function readHash() {
+    var m = /^#(\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)$/
+            .exec(location.hash);
+    if (!m) { return null; }
+    var zoom = parseFloat(m[1]), x = parseFloat(m[2]), y = parseFloat(m[3]);
+    if (!isFinite(zoom) || !isFinite(x) || !isFinite(y)) { return null; }
+    // A hash from a different zoom window, or a hand-edited one, must not put
+    // the view somewhere it cannot render.
+    if (zoom < MIN_ZOOM || zoom > MAX_ZOOM) { return null; }
+    if (x < TM35FIN_EXTENT[0] || x > TM35FIN_EXTENT[2]
+            || y < TM35FIN_EXTENT[1] || y > TM35FIN_EXTENT[3]) { return null; }
+    return {center: [x, y], zoom: zoom};
+}
+
+function writeHash(view) {
+    var c = view.getCenter(), z = view.getZoom();
+    if (!c || z === undefined) { return; }
+    var hash = '#' + Math.round(z * 100) / 100 +
+        '/' + Math.round(c[0] * 100) / 100 + '/' + Math.round(c[1] * 100) / 100;
+    if (hash === location.hash) { return; }
+    // replaceState, not location.hash: panning would otherwise push an entry
+    // per frame and bury the back button.
+    history.replaceState(null, '', location.pathname + location.search + hash);
+}
+
+/**
+ * Build the OpenLayers tile grid straight from the tile matrix set document, so
+ * the page never restates the scheme: origin, resolutions, tile size and the
+ * per-level matrix sizes all come from the server. If hakunapi and this page
+ * disagree about the grid, tiles land in the wrong place and it shows.
+ */
+function toTileGrid(tms) {
+    var matrices = tms.tileMatrices.slice().sort(function (a, b) {
+        return b.cellSize - a.cellSize;   // coarsest first = OL zoom 0
+    });
+    var first = matrices[0];
+    var origin = first.pointOfOrigin;     // [x, y] of the top-left corner
+    var resolutions = matrices.map(function (m) { return m.cellSize; });
+    var tileSize = [first.tileWidth, first.tileHeight];
+
+    // The view zooms past the deepest tile matrix, so it needs resolutions the
+    // server never declared. Extend the list by halving; these levels are
+    // rendered from MAX_TILE_ZOOM's tiles, not fetched.
+    while (resolutions.length <= MAX_ZOOM) {
+        resolutions.push(resolutions[resolutions.length - 1] / 2);
+    }
+
+    // The extent spans matrixWidth tiles from the origin, downwards in y.
+    var extent = [
+        origin[0],
+        origin[1] - first.matrixHeight * first.cellSize * first.tileHeight,
+        origin[0] + first.matrixWidth * first.cellSize * first.tileWidth,
+        origin[1]
+    ];
+
+    return {
+        // What the view zooms over: every level up to MAX_ZOOM.
+        resolutions: resolutions,
+        // What the source fetches: capped at MAX_TILE_ZOOM. A tile grid only
+        // has the levels in its own resolution list, so OL cannot ask for a
+        // z14+ tile that does not exist here - it reuses the z13 tile and
+        // scales it, which is the whole point.
+        grid: new ol.tilegrid.TileGrid({
+            extent: extent,
+            origin: origin,
+            resolutions: resolutions.slice(0, MAX_TILE_ZOOM + 1),
+            tileSize: tileSize
+        }),
+        matrixIds: matrices.map(function (m) { return m.id; })
+    };
+}
+
+var map = new ol.Map({
+    target: 'map',
+    controls: ol.control.defaults.defaults().extend([new ol.control.ScaleLine()])
+});
+
+Promise.all([
+    fetch(API + '/tileMatrixSets/' + encodeURIComponent(TMS_ID) + '?f=json')
+        .then(function (r) {
+            if (!r.ok) { throw new Error(TMS_ID + ' -> HTTP ' + r.status); }
+            return r.json();
+        }),
+    fetch('mtk-style.json').then(function (r) { return r.json(); })
+]).then(function (both) {
+    var tmsDoc = both[0], style = both[1];
+
+    var srid = (tmsDoc.crs || '').split('/').pop();
+    if (srid !== '3067') {
+        throw new Error(TMS_ID + ' is EPSG:' + srid + ', not 3067');
+    }
+
+    var built = toTileGrid(tmsDoc);
+    var matrixIds = built.matrixIds;
+    // The dataset tileset: one MVT layer per collection, which is what the
+    // style's source-layer names refer to.
+    var base = API + '/tiles/' + encodeURIComponent(TMS_ID) + '/';
+
+    var source = new ol.source.VectorTile({
+        format: new ol.format.MVT(),
+        projection: proj3067,
+        tileGrid: built.grid,
+        // OGC path order is {tileMatrix}/{tileRow}/{tileCol}; OL hands us
+        // [z, col, row], and z indexes our own resolution list.
+        tileUrlFunction: function (coord) {
+            var z = coord[0], col = coord[1], row = coord[2];
+            if (z < 0 || z >= matrixIds.length) { return undefined; }
+            return base + matrixIds[z] + '/' + row + '/' + col + '?f=mvt';
+        }
+    });
+
+    var errors = 0;
+    source.on('tileloaderror', function () {
+        say('GET ' + base.replace(API, '') + '{tileMatrix}/{row}/{col}?f=mvt\n' +
+            (++errors) + ' tiles failed', true);
+    });
+
+    var layer = new ol.layer.VectorTile({source: source, declutter: true});
+    map.addLayer(layer);
+
+    // Zoom level N is tile matrix level N, so every tile is drawn at its native
+    // scale rather than at whatever a default view derives from the extent.
+    var start = readHash();
+    map.setView(new ol.View({
+        projection: proj3067,
+        // The view's own list, not the source's: the source stops at
+        // MAX_TILE_ZOOM and the view carries on to MAX_ZOOM.
+        resolutions: built.resolutions,
+        minZoom: MIN_ZOOM,
+        maxZoom: MAX_ZOOM,
+        center: start ? start.center : HOME,
+        zoom: start ? start.zoom : HOME_ZOOM
+    }));
+
+    // moveend, not a change listener: one write per gesture rather than per frame.
+    map.on('moveend', function () { writeHash(map.getView()); });
+    writeHash(map.getView());
+
+    // Someone editing the hash, or arriving via back/forward, should be taken there.
+    window.addEventListener('hashchange', function () {
+        var h = readHash();
+        if (!h) { return; }
+        var view = map.getView();
+        if (h.zoom !== view.getZoom()) { view.setZoom(h.zoom); }
+        var c = view.getCenter();
+        if (!c || Math.abs(c[0] - h.center[0]) > 0.01
+                || Math.abs(c[1] - h.center[1]) > 0.01) {
+            view.setCenter(h.center);
+        }
+    });
+
+    // applyStyle paints the style's layers for one source onto a layer we own,
+    // unlike olms.apply which would build the layer and source itself.
+    //
+    // updateSource: false is the load-bearing part. By default applyStyle also
+    // re-derives the source from the style document - which declares a
+    // WebMercatorQuad TileJSON url - and copies its tile URL function over ours,
+    // so tiles would silently be fetched from the wrong tiling scheme while the
+    // view stayed 3067. With it, the source built above is left alone and only
+    // the style is applied.
+    return olms.applyStyle(layer, style, 'taustakartta', {updateSource: false});
+}).then(function () {
+    say('');
+}).catch(function (e) {
+    say(String(e.message || e), true);
+    console.error('mtk-tm35:', e);
+});
+
+</script>
+</body>
+</html>
