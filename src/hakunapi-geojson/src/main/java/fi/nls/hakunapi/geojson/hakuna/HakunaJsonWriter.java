@@ -11,7 +11,7 @@ import fi.nls.hakunapi.core.util.UTF8;
 
 public class HakunaJsonWriter implements AutoCloseable, Flushable {
 
-    private static final int BUF_LEN = 8192;
+    private static final int BUF_LEN = 65536;
 
     private static final byte QUOTE = '"';
     private static final byte COLON = ':';
