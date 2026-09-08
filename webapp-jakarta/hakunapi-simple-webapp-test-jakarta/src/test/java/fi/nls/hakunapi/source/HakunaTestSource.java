@@ -114,6 +114,8 @@ public class HakunaTestSource implements SimpleSource {
 			return Integer.valueOf(value);
 		case LONG:
 			return Long.valueOf(value);
+		case FLOAT:
+			return Float.valueOf(value);
 		case DOUBLE:
 			return Double.valueOf(value);
 		default:

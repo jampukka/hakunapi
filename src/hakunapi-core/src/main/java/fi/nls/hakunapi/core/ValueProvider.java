@@ -44,6 +44,10 @@ public interface ValueProvider {
         return getLong(i);
     }
 
+    public default float getPrimitiveFloat(int i) {
+        return getFloat(i);
+    }
+
     public default double getPrimitiveDouble(int i) {
         return getDouble(i);
     }

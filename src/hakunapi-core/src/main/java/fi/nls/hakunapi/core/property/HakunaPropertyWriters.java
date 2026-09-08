@@ -109,13 +109,15 @@ public final class HakunaPropertyWriters {
                     }
                     : (vp, i, writer) -> writer.writeProperty(name, vp.getPrimitiveDouble(i));
         case FLOAT:
-            return (vp, i, writer) -> {
-                if (vp.isNull(i)) {
-                    writer.writeNullProperty(name);
-                } else {
-                    writer.writeProperty(name, vp.getFloat(i));
-                }
-            };
+            return nullable
+                    ? (vp, i, writer) -> {
+                        if (vp.isNull(i)) {
+                            writer.writeNullProperty(name);
+                        } else {
+                            writer.writeProperty(name, vp.getPrimitiveFloat(i));
+                        }
+                    }
+                    : (vp, i, writer) -> writer.writeProperty(name, vp.getPrimitiveFloat(i));
         case DATE:
             return (vp, i, writer) -> {
                 if (vp.isNull(i)) {

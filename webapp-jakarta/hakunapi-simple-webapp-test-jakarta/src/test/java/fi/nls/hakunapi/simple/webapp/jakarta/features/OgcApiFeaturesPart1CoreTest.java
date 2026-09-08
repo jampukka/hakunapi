@@ -224,6 +224,8 @@ public class OgcApiFeaturesPart1CoreTest extends JerseyTest {
 				//
 				.assertThat("$.features[0].properties.my_long", equalTo(9876543210L)).and()
 				//
+				.assertThat("$.features[0].properties.my_float", equalTo(2.5)).and()
+				//
 				.assertThat("$.features[0].properties.my_double", equalTo(1.5)).and()
 				//
 				.assertThat("$.features[0].properties.my_boolean", equalTo(true)).and()
@@ -231,6 +233,8 @@ public class OgcApiFeaturesPart1CoreTest extends JerseyTest {
 				.assertThat("$.features[1].properties.my_int", nullValue()).and()
 				//
 				.assertThat("$.features[1].properties.my_long", nullValue()).and()
+				//
+				.assertThat("$.features[1].properties.my_float", nullValue()).and()
 				//
 				.assertThat("$.features[1].properties.my_double", nullValue()).and()
 				//
@@ -250,6 +254,8 @@ public class OgcApiFeaturesPart1CoreTest extends JerseyTest {
 				.assertThat("$.properties.my_int", equalTo(42)).and()
 				//
 				.assertThat("$.properties.my_long", equalTo(9876543210L)).and()
+				//
+				.assertThat("$.properties.my_float", equalTo(2.5)).and()
 				//
 				.assertThat("$.properties.my_double", equalTo(1.5)).and()
 				//

@@ -111,6 +111,15 @@ public class ResultSetValueProvider implements ValueProvider {
     }
 
     @Override
+    public float getPrimitiveFloat(int i) {
+        try {
+            return rs.getFloat(i + 1);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
     public double getPrimitiveDouble(int i) {
         try {
             return rs.getDouble(i + 1);

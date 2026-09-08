@@ -21,7 +21,7 @@ For a full list of changes see: https://github.com/nlsfi/hakunapi/milestone/17
 - Fixed broken maps on HTML feature pages: the proj4 and proj4leaflet CDN URLs pointed at files the packages do not publish, so jsDelivr generated them on the fly and their SRI hashes drifted.
 - Removed obsolete `.github/workflows/deploy.yml` CI workflow.
 - Documentation: added a table of selected dependencies to [docs/overview/modules.md](docs/overview/modules.md).
-- `ValueProvider` gained `getPrimitiveBoolean`/`getPrimitiveInt`/`getPrimitiveLong`/`getPrimitiveDouble`, used by the GPKG and PostGIS sources to read INT/LONG/DOUBLE/BOOLEAN feature values without boxing. They are `default` methods that unbox the existing boxed accessors, so custom `ValueProvider` implementations keep working unchanged; overriding them avoids one boxed value per attribute per feature. Callers must check `isNull(int)` first — the return value is unspecified for a null value.
+- `ValueProvider` gained `getPrimitiveBoolean`/`getPrimitiveInt`/`getPrimitiveLong`/`getPrimitiveFloat`/`getPrimitiveDouble`, used by the GPKG and PostGIS sources to read BOOLEAN/INT/LONG/FLOAT/DOUBLE feature values without boxing. They are `default` methods that unbox the existing boxed accessors, so custom `ValueProvider` implementations keep working unchanged; overriding them avoids one boxed value per attribute per feature. Callers must check `isNull(int)` first — the return value is unspecified for a null value.
 
 ### Library updates
 
