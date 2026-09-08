@@ -21,6 +21,7 @@ import fi.nls.hakunapi.core.config.HakunaConfigParser;
 import fi.nls.hakunapi.core.geom.HakunaGeometryJTS;
 import fi.nls.hakunapi.core.geom.HakunaGeometryType;
 import fi.nls.hakunapi.core.property.HakunaProperty;
+import fi.nls.hakunapi.core.property.HakunaPropertyType;
 import fi.nls.hakunapi.core.property.simple.HakunaPropertyGeometry;
 
 public class HakunaTestSource implements SimpleSource {
@@ -63,9 +64,10 @@ public class HakunaTestSource implements SimpleSource {
 
 			String t = p + "testdata.";
 			final Map<String, String> testdata = cfg.getAllStartingWith(t);
+			final List<HakunaProperty> props = ft.getProperties();
 			List<Object[]> objList = testdata.entrySet().stream().sorted((a, b) -> a.getKey().compareTo(b.getKey()))
 					.map(entry -> {
-						String[] vals = entry.getValue().split(";");
+						String[] vals = entry.getValue().split(";", -1);
 						Object[] objs = new Object[vals.length];
 						System.arraycopy(vals, 0, objs, 0, vals.length);
 						Geometry geom;
@@ -75,6 +77,12 @@ public class HakunaTestSource implements SimpleSource {
 							geom = null;
 						}
 						objs[1] = new HakunaGeometryJTS(geom);
+						// Columns 2.. are the properties, in declaration order.
+						// An empty field is a null value, everything else is
+						// parsed to the property's own type.
+						for (int i = 2; i < objs.length && i - 2 < props.size(); i++) {
+							objs[i] = toTestValue(props.get(i - 2).getType(), vals[i]);
+						}
 						return objs;
 					}).collect(Collectors.toList());
 			ft.setObjs(objList);
@@ -88,6 +96,24 @@ public class HakunaTestSource implements SimpleSource {
 			throw t;
 		}
 
+	}
+
+	private static Object toTestValue(HakunaPropertyType type, String value) {
+		if (value.isEmpty()) {
+			return null;
+		}
+		switch (type) {
+		case BOOLEAN:
+			return Boolean.valueOf(value);
+		case INT:
+			return Integer.valueOf(value);
+		case LONG:
+			return Long.valueOf(value);
+		case DOUBLE:
+			return Double.valueOf(value);
+		default:
+			return value;
+		}
 	}
 
 	private List<HakunaProperty> getFeaturesProperties(final HakunaConfigParser cfg, final String p,
