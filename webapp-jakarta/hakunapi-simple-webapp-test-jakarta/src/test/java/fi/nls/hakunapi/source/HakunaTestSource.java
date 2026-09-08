@@ -77,10 +77,15 @@ public class HakunaTestSource implements SimpleSource {
 							geom = null;
 						}
 						objs[1] = new HakunaGeometryJTS(geom);
-						// Columns 2.. are the properties, in declaration order.
+						// Columns 2.. are the properties, in the same order as
+						// getColumnIndex() assumes (property n is column n + 2).
 						// An empty field is a null value, everything else is
 						// parsed to the property's own type.
-						for (int i = 2; i < objs.length && i - 2 < props.size(); i++) {
+						if (objs.length - 2 != props.size()) {
+							throw new IllegalArgumentException("Testdata row has " + (objs.length - 2)
+									+ " property columns, expected " + props.size());
+						}
+						for (int i = 2; i < objs.length; i++) {
 							objs[i] = toTestValue(props.get(i - 2).getType(), vals[i]);
 						}
 						return objs;
