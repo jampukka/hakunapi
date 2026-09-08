@@ -220,6 +220,9 @@ public class OgcApiFeaturesPart1CoreTest extends JerseyTest {
 				//
 				.assertThat("$.numberReturned", equalTo(2)).and()
 				//
+				// A LONG id is written as a JSON number, not a string
+				.assertThat("$.features[0].id", equalTo(1)).and()
+				//
 				.assertThat("$.features[0].properties.my_int", equalTo(42)).and()
 				//
 				.assertThat("$.features[0].properties.my_long", equalTo(9876543210L)).and()

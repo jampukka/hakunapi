@@ -77,6 +77,8 @@ public class HakunaTestSource implements SimpleSource {
 							geom = null;
 						}
 						objs[1] = new HakunaGeometryJTS(geom);
+						// Column 0 is the feature id, typed by the schema
+						objs[0] = toTestValue(schema.getIdType(), vals[0]);
 						// Columns 2.. are the properties, in the same order as
 						// getColumnIndex() assumes (property n is column n + 2).
 						// An empty field is a null value, everything else is

@@ -174,57 +174,46 @@ public final class HakunaPropertyWriters {
     public static HakunaPropertyWriter getIdPropertyWriter(FeatureType ft, String layerName, String name, HakunaPropertyType type) {
         switch (type) {
         case INT:
-            return (vp, i, writer) -> {
-                writeStartFeature(ft, layerName, writer, type, vp.getInt(i));
-            };
+            return (vp, i, writer) -> writeStartFeature(ft, layerName, writer, vp.getPrimitiveInt(i));
         case LONG:
-            return (vp, i, writer) -> {
-                writeStartFeature(ft, layerName, writer, type, vp.getLong(i));
-            };
+            return (vp, i, writer) -> writeStartFeature(ft, layerName, writer, vp.getPrimitiveLong(i));
         case STRING:
         case UUID:
-            return (vp, i, writer) -> {
-                writeStartFeature(ft, layerName, writer, type, vp.getObject(i).toString());
-            };
+            return (vp, i, writer) -> writeStartFeature(ft, layerName, writer, vp.getObject(i).toString());
         case DOUBLE:
-            return (vp, i, writer) -> {
-                writeStartFeature(ft, layerName, writer, type, doubleAsID(vp.getDouble(i)));
-            };  
+            return (vp, i, writer) -> writeStartFeature(ft, layerName, writer, doubleAsID(vp.getPrimitiveDouble(i)));
         default:
             throw new IllegalArgumentException("Invalid type for id property");
         }
     }
 
-    protected static String doubleAsID(Double d) {      
+    protected static String doubleAsID(double d) {
         byte[] b = new byte[24];
         int len = DToA.dtoa(d, b, 0, 0, 8);
         return new String(b, 0, len);
     }
 
-    
-    private static void writeStartFeature(FeatureType ft, String layerName, FeatureWriter writer, HakunaPropertyType type, Object value) throws Exception {
+    private static void writeStartFeature(FeatureType ft, String layerName, FeatureWriter writer, int fid) throws Exception {
         if (writer instanceof FeatureCollectionWriter) {
-            FeatureCollectionWriter fcWriter = (FeatureCollectionWriter) writer;
-            if (type == HakunaPropertyType.INT) {
-                int fid = ((Number) value).intValue();
-                fcWriter.startFeature(fid);
-            } else if (type == HakunaPropertyType.LONG) {
-                long fid = ((Number) value).longValue();
-                fcWriter.startFeature(fid);
-            } else {
-                fcWriter.startFeature(value.toString());
-            }
+            ((FeatureCollectionWriter) writer).startFeature(fid);
         } else {
-            SingleFeatureWriter singleWriter = (SingleFeatureWriter) writer;
-            if (type == HakunaPropertyType.INT) {
-                int fid = ((Number) value).intValue();
-                singleWriter.startFeature(ft, layerName, fid);
-            } else if (type == HakunaPropertyType.LONG) {
-                long fid = ((Number) value).longValue();
-                singleWriter.startFeature(ft, layerName, fid);
-            } else {
-                singleWriter.startFeature(ft, layerName, value.toString());
-            }
+            ((SingleFeatureWriter) writer).startFeature(ft, layerName, fid);
+        }
+    }
+
+    private static void writeStartFeature(FeatureType ft, String layerName, FeatureWriter writer, long fid) throws Exception {
+        if (writer instanceof FeatureCollectionWriter) {
+            ((FeatureCollectionWriter) writer).startFeature(fid);
+        } else {
+            ((SingleFeatureWriter) writer).startFeature(ft, layerName, fid);
+        }
+    }
+
+    private static void writeStartFeature(FeatureType ft, String layerName, FeatureWriter writer, String fid) throws Exception {
+        if (writer instanceof FeatureCollectionWriter) {
+            ((FeatureCollectionWriter) writer).startFeature(fid);
+        } else {
+            ((SingleFeatureWriter) writer).startFeature(ft, layerName, fid);
         }
     }
 
