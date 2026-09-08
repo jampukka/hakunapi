@@ -56,39 +56,58 @@ public final class HakunaPropertyWriters {
     }
 
     public static HakunaPropertyWriter getSimplePropertyWriter(String name, HakunaPropertyType type) {
+        return getSimplePropertyWriter(name, type, true);
+    }
+
+    /**
+     * The writer for one property, with the null check resolved here instead of
+     * per row: a property declared non-nullable gets a variant that never calls
+     * {@link ValueProvider#isNull(int)}. For the primitive types the value is
+     * read through the {@code getPrimitive*} accessors, so a source that can
+     * hand out a primitive never has to box it.
+     */
+    public static HakunaPropertyWriter getSimplePropertyWriter(String name, HakunaPropertyType type, boolean nullable) {
         switch (type) {
         case BOOLEAN:
-            return (vp, i, writer) -> {
-                if (vp.isNull(i)) {
-                    writer.writeNullProperty(name);
-                } else {
-                    writer.writeProperty(name, vp.getBoolean(i));
-                }
-            };
+            return nullable
+                    ? (vp, i, writer) -> {
+                        if (vp.isNull(i)) {
+                            writer.writeNullProperty(name);
+                        } else {
+                            writer.writeProperty(name, vp.getPrimitiveBoolean(i));
+                        }
+                    }
+                    : (vp, i, writer) -> writer.writeProperty(name, vp.getPrimitiveBoolean(i));
         case INT:
-            return (vp, i, writer) -> {
-                if (vp.isNull(i)) {
-                    writer.writeNullProperty(name);
-                } else {
-                    writer.writeProperty(name, vp.getInt(i));
-                }
-            };
+            return nullable
+                    ? (vp, i, writer) -> {
+                        if (vp.isNull(i)) {
+                            writer.writeNullProperty(name);
+                        } else {
+                            writer.writeProperty(name, vp.getPrimitiveInt(i));
+                        }
+                    }
+                    : (vp, i, writer) -> writer.writeProperty(name, vp.getPrimitiveInt(i));
         case LONG:
-            return (vp, i, writer) -> {
-                if (vp.isNull(i)) {
-                    writer.writeNullProperty(name);
-                } else {
-                    writer.writeProperty(name, vp.getLong(i));
-                }
-            };
+            return nullable
+                    ? (vp, i, writer) -> {
+                        if (vp.isNull(i)) {
+                            writer.writeNullProperty(name);
+                        } else {
+                            writer.writeProperty(name, vp.getPrimitiveLong(i));
+                        }
+                    }
+                    : (vp, i, writer) -> writer.writeProperty(name, vp.getPrimitiveLong(i));
         case DOUBLE:
-            return (vp, i, writer) -> {
-                if (vp.isNull(i)) {
-                    writer.writeNullProperty(name);
-                } else {
-                    writer.writeProperty(name, vp.getDouble(i));
-                }
-            };
+            return nullable
+                    ? (vp, i, writer) -> {
+                        if (vp.isNull(i)) {
+                            writer.writeNullProperty(name);
+                        } else {
+                            writer.writeProperty(name, vp.getPrimitiveDouble(i));
+                        }
+                    }
+                    : (vp, i, writer) -> writer.writeProperty(name, vp.getPrimitiveDouble(i));
         case FLOAT:
             return (vp, i, writer) -> {
                 if (vp.isNull(i)) {
